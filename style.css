@@ -1,0 +1,33 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  background: black;
+}
+
+#infoBox {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(0,0,0,0.85);
+  color: white;
+  padding: 15px;
+  border-radius: 8px;
+  max-width: 300px;
+  display: none;
+  z-index: 10;
+}
+
+#closeBtn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: red;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#infoContent {
+  margin-top: 20px;
+}

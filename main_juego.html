@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🚀 Juego Espacial - Esquiva los Planetas</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: black;
+      font-family: Arial, sans-serif;
+    }
+
+    #infoBox {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 50, 0.9);
+      color: white;
+      padding: 15px 20px;
+      border-radius: 10px;
+      display: none;
+      z-index: 10;
+      border: 1px solid rgba(100, 150, 255, 0.5);
+    }
+
+    #closeBtn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: rgba(255, 60, 60, 0.8);
+      border: none;
+      color: white;
+      font-weight: bold;
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      cursor: pointer;
+    }
+
+    #instructions {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 14px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 8px;
+      z-index: 5;
+    }
+  </style>
+</head>
+<body>
+  <div id="infoBox">
+    <button id="closeBtn">×</button>
+    <div id="infoContent"></div>
+  </div>
+
+  <div id="instructions">
+    <strong>Controles:</strong><br>
+    • Flechas para moverte<br>
+    • Evitá chocar con los planetas
+  </div>
+
+  <!-- Cargamos THREE.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Cargamos el script del juego -->
+  <script type="module" src="main_juego.js"></script>
+</body>
+</html> 

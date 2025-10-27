@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Explorador del Sistema Solar</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: black;
+      font-family: Arial, sans-serif;
+    }
+
+    #infoBox {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 20, 40, 0.95);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 350px;
+      display: none;
+      z-index: 100;
+      border: 2px solid rgba(100, 150, 255, 0.3);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(10px);
+    }
+
+    #closeBtn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(255, 50, 50, 0.8);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 25px;
+      height: 25px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s;
+    }
+
+    #closeBtn:hover {
+      background: rgba(255, 50, 50, 1);
+    }
+
+    #infoContent {
+      margin-top: 10px;
+      line-height: 1.6;
+    }
+
+    #infoContent strong {
+      color: #4da6ff;
+      font-size: 1.3em;
+    }
+
+    #instructions {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 14px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 8px;
+      z-index: 50;
+    }
+
+    #newFeatures {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 12px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 8px;
+      z-index: 50;
+      max-width: 200px;
+    }
+
+    #newFeatures .feature {
+      color: #4da6ff;
+      font-weight: bold;
+    }
+
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 18px;
+      z-index: 200;
+    }
+
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">Cargando el universo...</div>
+  
+  <div id="infoBox">
+    <button id="closeBtn">×</button>
+    <div id="infoContent"></div>
+  </div>
+
+  <div id="instructions">
+    <strong>Controles:</strong><br>
+    • Arrastra para rotar la vista<br>
+    • Rueda del mouse para acercar/alejar<br>
+    • Haz clic en los planetas para ver información
+  </div>
+
+  <div id="newFeatures">
+    <span class="feature">✨ Nuevas características:</span><br>
+    • Estrellas fugaces<br>
+    • Luna orbitando la Tierra<br>
+    • Anillos de Saturno<br>
+    • Galaxia lejana
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    // Configuración inicial
+    let scene, camera, renderer, controls;
+    let sunLight, ambientLight;
+    let planets = [];
+    let moons = [];
+    let shootingStars = [];
+    let raycaster = new THREE.Raycaster();
+    let mouse = new THREE.Vector2();
+    let isLoaded = false;
+
+    // Datos de los planetas
+    const planetData = [
+      { 
+        name: "Mercurio", 
+        size: 0.4, 
+        distance: 6, 
+        speed: 0.02,
+        color: 0x8c7853,
+        info: "Mercurio es el planeta más cercano al Sol y el más pequeño del Sistema Solar. Su superficie está llena de cráteres y las temperaturas varían extremadamente entre el día y la noche." 
+      },
+      { 
+        name: "Venus", 
+        size: 0.9, 
+        distance: 8.5, 
+        speed: 0.015,
+        color: 0xffc649,
+        info: "Venus es el planeta más caliente del Sistema Solar debido a su densa atmósfera de dióxido de carbono. Es conocido como la 'Estrella de la Mañana' o 'Estrella de la Tarde'." 
+      },
+      { 
+        name: "Tierra", 
+        size: 1, 
+        distance: 12, 
+        speed: 0.01,
+        color: 0x4f94cd,
+        info: "La Tierra es nuestro hogar, el único planeta conocido que alberga vida. Tiene agua líquida, una atmósfera protectora y una luna que estabiliza su rotación." 
+      },
+      { 
+        name: "Marte", 
+        size: 0.7, 
+        distance: 16, 
+        speed: 0.008,
+        color: 0xcd5c5c,
+        info: "Marte, el 'Planeta Rojo', debe su color al óxido de hierro en su superficie. Tiene los volcanes más grandes del Sistema Solar y evidencia de agua antigua." 
+      },
+      { 
+        name: "Júpiter", 
+        size: 2.5, 
+        distance: 25, 
+        speed: 0.005,
+        color: 0xd2691e,
+        info: "Júpiter es el planeta más grande del Sistema Solar, un gigante gaseoso con más de 80 lunas. Su Gran Mancha Roja es una tormenta que dura siglos." 
+      },
+      { 
+        name: "Saturno", 
+        size: 2.2, 
+        distance: 35, 
+        speed: 0.004,
+        color: 0xdaa520,
+        info: "Saturno es famoso por sus espectaculares anillos compuestos de hielo y roca. Es menos denso que el agua y tiene más de 80 lunas conocidas." 
+      },
+      { 
+        name: "Urano", 
+        size: 1.8, 
+        distance: 45, 
+        speed: 0.003,
+        color: 0x4fd0e7,
+        info: "Urano es único porque gira de lado, probablemente debido a una antigua colisión. Es un gigante de hielo con un sistema de anillos tenues." 
+      },
+      { 
+        name: "Neptuno", 
+        size: 1.7, 
+        distance: 55, 
+        speed: 0.002,
+        color: 0x4169e1,
+        info: "Neptuno es el planeta más distante y ventoso del Sistema Solar, con vientos de hasta 2,100 km/h. Fue descubierto mediante cálculos matemáticos." 
+      }
+    ];
+
+    // Inicialización
+    function init() {
+      // Escena
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000011);
+
+      // Cámara
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+      camera.position.set(30, 20, 30);
+
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.setPixelRatio(window.devicePixelRatio);
+      document.body.appendChild(renderer.domElement);
+
+      // Controles orbitales simples
+      setupControls();
+
+      // Iluminación
+      setupLighting();
+
+      // Fondo de estrellas
+      createStarField();
+
+      // Sol
+      createSun();
+
+      // Planetas
+      createPlanets();
+
+      // Galaxia lejana
+      createDistantGalaxy();
+
+      // Estrellas fugaces
+      initShootingStars();
+
+      // Event listeners
+      setupEventListeners();
+
+      // Ocultar loading
+      document.getElementById('loading').style.display = 'none';
+      isLoaded = true;
+
+      // Iniciar animación
+      animate();
+    }
+
+    function setupControls() {
+      // Controles manuales simples
+      let isMouseDown = false;
+      let mouseX = 0, mouseY = 0;
+      let targetRotationX = 0, targetRotationY = 0;
+      let rotationX = 0, rotationY = 0;
+
+      renderer.domElement.addEventListener('mousedown', (event) => {
+        isMouseDown = true;
+        mouseX = event.clientX;
+        mouseY = event.clientY;
+      });
+
+      document.addEventListener('mouseup', () => {
+        isMouseDown = false;
+      });
+
+      document.addEventListener('mousemove', (event) => {
+        if (isMouseDown) {
+          const deltaX = event.clientX - mouseX;
+          const deltaY = event.clientY - mouseY;
+          
+          targetRotationY += deltaX * 0.01;
+          targetRotationX += deltaY * 0.01;
+          
+          mouseX = event.clientX;
+          mouseY = event.clientY;
+        }
+      });
+
+      // Zoom con rueda del mouse
+      renderer.domElement.addEventListener('wheel', (event) => {
+        const delta = event.deltaY;
+        const zoomSpeed = 2;
+        
+        if (delta > 0) {
+          camera.position.multiplyScalar(1.1);
+        } else {
+          camera.position.multiplyScalar(0.9);
+        }
+        
+        // Limitar zoom
+        const distance = camera.position.length();
+        if (distance < 10) {
+          camera.position.normalize().multiplyScalar(10);
+        }
+        if (distance > 200) {
+          camera.position.normalize().multiplyScalar(200);
+        }
+      });
+
+      // Actualizar rotación suavemente
+      function updateControls() {
+        rotationX += (targetRotationX - rotationX) * 0.1;
+        rotationY += (targetRotationY - rotationY) * 0.1;
+        
+        // Aplicar rotación a la cámara
+        const distance = camera.position.length();
+        camera.position.x = distance * Math.sin(rotationY) * Math.cos(rotationX);
+        camera.position.y = distance * Math.sin(rotationX);
+        camera.position.z = distance * Math.cos(rotationY) * Math.cos(rotationX);
+        camera.lookAt(0, 0, 0);
+        
+        requestAnimationFrame(updateControls);
+      }
+      updateControls();
+    }
+
+    function setupLighting() {
+      // Luz del sol (punto de luz)
+      sunLight = new THREE.PointLight(0xffffff, 2, 300);
+      sunLight.position.set(0, 0, 0);
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.width = 2048;
+      sunLight.shadow.mapSize.height = 2048;
+      sunLight.shadow.camera.near = 0.5;
+      sunLight.shadow.camera.far = 200;
+      scene.add(sunLight);
+
+      // Luz ambiental suave
+      ambientLight = new THREE.AmbientLight(0x404040, 0.2);
+      scene.add(ambientLight);
+    }
+
+    function createStarField() {
+      const starGeometry = new THREE.BufferGeometry();
+      const starCount = 15000;
+      const positions = new Float32Array(starCount * 3);
+      
+      for (let i = 0; i < starCount; i++) {
+        positions[i * 3] = (Math.random() - 0.5) * 4000;
+        positions[i * 3 + 1] = (Math.random() - 0.5) * 4000;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 4000;
+      }
+      
+      starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      
+      const starMaterial = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 2,
+        sizeAttenuation: false
+      });
+      
+      const stars = new THREE.Points(starGeometry, starMaterial);
+      scene.add(stars);
+    }
+
+    function createSun() {
+      const sunGeometry = new THREE.SphereGeometry(2.5, 32, 32); // Un poco más pequeño
+      
+      // Material emisivo para el sol con más intensidad
+      const sunMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffdd44,
+        emissive: 0xff6600,
+        emissiveIntensity: 0.6
+      });
+      
+      const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+      sun.userData = { 
+        name: "Sol", 
+        info: "El Sol es la estrella central de nuestro Sistema Solar. Contiene el 99.86% de la masa del sistema y genera energía mediante fusión nuclear en su núcleo. ¡Estás flotando muy cerca de esta gigantesca bola de fuego!" 
+      };
+      scene.add(sun);
+      planets.push(sun);
+
+      // Efectos de brillo más intensos para vista cercana
+      const glowGeometry = new THREE.SphereGeometry(3.2, 32, 32);
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffaa00,
+        transparent: true,
+        opacity: 0.2,
+        side: THREE.BackSide
+      });
+      const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+      scene.add(glow);
+
+      // Corona solar
+      const coronaGeometry = new THREE.SphereGeometry(4, 32, 32);
+      const coronaMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffaa44,
+        transparent: true,
+        opacity: 0.1,
+        side: THREE.BackSide
+      });
+      const corona = new THREE.Mesh(coronaGeometry, coronaMaterial);
+      scene.add(corona);
+    }
+
+    function createPlanets() {
+      planetData.forEach((data, index) => {
+        // Geometría y material del planeta
+        const geometry = new THREE.SphereGeometry(data.size, 32, 32);
+        const material = new THREE.MeshStandardMaterial({
+          color: data.color,
+          roughness: 0.8,
+          metalness: 0.1
+        });
+        
+        const planet = new THREE.Mesh(geometry, material);
+        planet.position.set(data.distance, 0, 0);
+        planet.castShadow = true;
+        planet.receiveShadow = true;
+        
+        // Guardar datos del planeta
+        planet.userData = {
+          ...data,
+          angle: Math.random() * Math.PI * 2, // Posición inicial aleatoria
+          rotationSpeed: 0.02 + Math.random() * 0.03
+        };
+        
+        scene.add(planet);
+        planets.push(planet);
+
+        // Crear órbita visible
+        createOrbit(data.distance);
+
+        // Agregar Luna a la Tierra
+        if (data.name === "Tierra") {
+          createMoon(planet);
+        }
+
+        // Agregar anillos a Saturno
+        if (data.name === "Saturno") {
+          createRings(planet, data.size);
+        }
+      });
+    }
+
+    function createOrbit(radius) {
+      const orbitGeometry = new THREE.RingGeometry(radius - 0.05, radius + 0.05, 64);
+      const orbitMaterial = new THREE.MeshBasicMaterial({
+        color: 0x333333,
+        transparent: true,
+        opacity: 0.7, // <-- Cambia este valor
+        side: THREE.DoubleSide
+      });
+      const orbit = new THREE.Mesh(orbitGeometry, orbitMaterial);
+      orbit.rotation.x = -Math.PI / 2;
+      scene.add(orbit);
+    }
+
+    function createMoon(earthPlanet) {
+      const moonGeometry = new THREE.SphereGeometry(0.27, 16, 16); // Tamaño proporcional
+      const moonMaterial = new THREE.MeshStandardMaterial({
+        color: 0xaaaaaa,
+        roughness: 0.9,
+        metalness: 0.1
+      });
+      
+      const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+      moon.castShadow = true;
+      moon.receiveShadow = true;
+      
+      moon.userData = {
+        name: "Luna",
+        parent: earthPlanet,
+        distance: 2.5, // Distancia de la Tierra
+        angle: 0,
+        speed: 0.05, // Más rápida que la Tierra
+        rotationSpeed: 0.01,
+        info: "La Luna es el único satélite natural de la Tierra. Su influencia gravitacional causa las mareas oceánicas y ha sido crucial para la estabilidad del eje terrestre."
+      };
+      
+      scene.add(moon);
+      moons.push(moon);
+      
+      // Órbita de la Luna
+      const moonOrbitGeometry = new THREE.RingGeometry(2.4, 2.6, 32);
+      const moonOrbitMaterial = new THREE.MeshBasicMaterial({
+        color: 0x666666,
+        transparent: true,
+        opacity: 5,
+        side: THREE.DoubleSide
+      });
+      const moonOrbit = new THREE.Mesh(moonOrbitGeometry, moonOrbitMaterial);
+      moonOrbit.rotation.x = -Math.PI / 2;
+      moonOrbit.userData = { parent: earthPlanet };
+      scene.add(moonOrbit);
+    }
+
+    function createRings(planet, planetSize) {
+      // Anillos principales de Saturno
+      const ringGeometry = new THREE.RingGeometry(planetSize * 1.5, planetSize * 2.5, 64);
+      const ringMaterial = new THREE.MeshStandardMaterial({
+        color: 0xaaaaaa,
+        transparent: true,
+        opacity: 0.5,
+        side: THREE.DoubleSide,
+        roughness: 0.8
+      });
+      
+      const rings = new THREE.Mesh(ringGeometry, ringMaterial);
+      rings.rotation.x = -Math.PI / 2;
+      rings.rotation.z = Math.PI / 12; // Leve inclinación
+      rings.receiveShadow = true;
+      
+      planet.add(rings); // Agregar como hijo del planeta
+      
+      // Anillo exterior más tenue
+      const outerRingGeometry = new THREE.RingGeometry(planetSize * 2.8, planetSize * 3.2, 64);
+      const outerRingMaterial = new THREE.MeshStandardMaterial({
+        color: 0xddbb88,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide,
+        roughness: 0.9
+      });
+      
+      const outerRings = new THREE.Mesh(outerRingGeometry, outerRingMaterial);
+      outerRings.rotation.x = -Math.PI / 2;
+      outerRings.rotation.z = Math.PI / 12;
+      outerRings.receiveShadow = true;
+      
+      planet.add(outerRings);
+    }
+
+    function createDistantGalaxy() {
+      // Crear una galaxia espiral lejana
+      const galaxyGeometry = new THREE.BufferGeometry();
+      const galaxyStars = 8000;
+      const positions = new Float32Array(galaxyStars * 3);
+      const colors = new Float32Array(galaxyStars * 3);
+      
+      // Posicionar la galaxia muy lejos
+      const galaxyDistance = 1500;
+      const galaxyCenter = new THREE.Vector3(galaxyDistance, 300, -800);
+      
+      for (let i = 0; i < galaxyStars; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = Math.random() * 150 + 20;
+        const armOffset = Math.sin(angle * 3) * 20; // Brazos espirales
+        
+        const x = Math.cos(angle) * (radius + armOffset) + galaxyCenter.x;
+        const y = (Math.random() - 0.5) * 30 + galaxyCenter.y; // Disco plano
+        const z = Math.sin(angle) * (radius + armOffset) + galaxyCenter.z;
+        
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+        
+        // Colores variados para las estrellas de la galaxia
+        const colorVariation = Math.random();
+        if (colorVariation < 0.3) {
+          colors[i * 3] = 1; colors[i * 3 + 1] = 0.8; colors[i * 3 + 2] = 0.6; // Amarillo
+        } else if (colorVariation < 0.6) {
+          colors[i * 3] = 0.8; colors[i * 3 + 1] = 0.9; colors[i * 3 + 2] = 1; // Azul-blanco
+        } else {
+          colors[i * 3] = 1; colors[i * 3 + 1] = 0.6; colors[i * 3 + 2] = 0.4; // Rojizo
+        }
+      }
+      
+      galaxyGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      galaxyGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      
+      const galaxyMaterial = new THREE.PointsMaterial({
+        size: 3,
+        sizeAttenuation: true,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      const distantGalaxy = new THREE.Points(galaxyGeometry, galaxyMaterial);
+      scene.add(distantGalaxy);
+    }
+
+    function initShootingStars() {
+      // Crear algunas estrellas fugaces iniciales
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => createShootingStar(), Math.random() * 5000);
+      }
+    }
+
+    function createShootingStar() {
+      const startPos = new THREE.Vector3(
+        (Math.random() - 0.5) * 400,
+        Math.random() * 200 + 50,
+        (Math.random() - 0.5) * 400
+      );
+      
+      const endPos = new THREE.Vector3(
+        startPos.x + (Math.random() - 0.5) * 200,
+        startPos.y - Math.random() * 100 - 50,
+        startPos.z + (Math.random() - 0.5) * 200
+      );
+      
+      // Crear la estela de la estrella fugaz
+      const trailPoints = [];
+      const segmentCount = 20;
+      
+      for (let i = 0; i <= segmentCount; i++) {
+        const t = i / segmentCount;
+        const point = new THREE.Vector3().lerpVectors(startPos, endPos, t);
+        trailPoints.push(point);
+      }
+      
+      const trailGeometry = new THREE.BufferGeometry().setFromPoints(trailPoints);
+      const trailMaterial = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      const shootingStar = new THREE.Line(trailGeometry, trailMaterial);
+      shootingStar.userData = {
+        startTime: Date.now(),
+        duration: 2000 + Math.random() * 1000, // 2-3 segundos
+        startPos: startPos.clone(),
+        endPos: endPos.clone(),
+        originalOpacity: 0.8
+      };
+      
+      scene.add(shootingStar);
+      shootingStars.push(shootingStar);
+      
+      // Programar la próxima estrella fugaz
+      setTimeout(() => createShootingStar(), 8000 + Math.random() * 15000);
+    }
+
+    function setupEventListeners() {
+      // Click en planetas
+      renderer.domElement.addEventListener('click', onPlanetClick);
+      
+      // Botón cerrar info
+      document.getElementById('closeBtn').addEventListener('click', () => {
+        document.getElementById('infoBox').style.display = 'none';
+      });
+      
+      // Resize
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function onPlanetClick(event) {
+      if (!isLoaded) return;
+
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects([...planets, ...moons]);
+
+      if (intersects.length > 0) {
+        const clickedObject = intersects[0].object;
+        const data = clickedObject.userData;
+        
+        document.getElementById('infoContent').innerHTML = `
+          <strong>${data.name}</strong><br><br>
+          ${data.info}
+        `;
+        document.getElementById('infoBox').style.display = 'block';
+      }
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (isLoaded) {
+        // Animar planetas (excepto el sol)
+        planets.forEach((planet, index) => {
+          if (index === 0) return; // Skip sun
+          
+          const data = planet.userData;
+          
+          // Rotación del planeta
+          planet.rotation.y += data.rotationSpeed;
+          
+          // Órbita alrededor del sol
+          data.angle += data.speed;
+          planet.position.x = Math.cos(data.angle) * data.distance;
+          planet.position.z = Math.sin(data.angle) * data.distance;
+        });
+
+        // Animar lunas
+        moons.forEach(moon => {
+          const data = moon.userData;
+          const parent = data.parent;
+          
+          // Rotación de la luna
+          moon.rotation.y += data.rotationSpeed;
+          
+          // Órbita alrededor del planeta padre
+          data.angle += data.speed;
+          moon.position.x = parent.position.x + Math.cos(data.angle) * data.distance;
+          moon.position.z = parent.position.z + Math.sin(data.angle) * data.distance;
+          moon.position.y = parent.position.y;
+        });
+
+        // Animar estrellas fugaces
+        updateShootingStars();
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function updateShootingStars() {
+      const currentTime = Date.now();
+      
+      for (let i = shootingStars.length - 1; i >= 0; i--) {
+        const star = shootingStars[i];
+        const elapsed = currentTime - star.userData.startTime;
+        const progress = elapsed / star.userData.duration;
+        
+        if (progress >= 1) {
+          // Remover estrella fugaz completada
+          scene.remove(star);
+          shootingStars.splice(i, 1);
+        } else {
+          // Actualizar opacidad (fade out)
+          const opacity = star.userData.originalOpacity * (1 - progress);
+          star.material.opacity = opacity;
+        }
+      }
+    }
+
+    // Inicializar cuando se carga la página
+    window.addEventListener('load', init);
+  </script>
+</body>
+</html>
