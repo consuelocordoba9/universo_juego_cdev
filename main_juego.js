@@ -1,4 +1,6 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js";
+import { loadInto, setScaleOnParent, setPositionOnParent, disposeCurrent, setRotationOnParent } from './src/ship/shipManager.js';
+import { getPresetForUrl } from './src/ship/shipConfig.js';
 // ====== ESCENA, CÁMARA Y RENDER ======
 const scene = new THREE.Scene();
 const spaceTexture = new THREE.TextureLoader().load("./textures/space_bg.jpg");
@@ -53,48 +55,157 @@ function createStars() {
 createStars();
 
 // ====== COHETE ======
+// Reemplazamos la nave procedural por un grupo vacío: la nave real se cargará desde
+// los modelos seleccionados en el menú y se añadirá como hijo de `rocket`.
 const rocket = new THREE.Group();
-
-// cuerpo
-const body = new THREE.Mesh(
-	new THREE.CylinderGeometry(0.3, 0.4, 2, 32),
-	new THREE.MeshStandardMaterial({
-		color: 0xd32f2f,
-		metalness: 0.8,
-		roughness: 0.3,
-	})
-);
-rocket.add(body);
-
-// punta
-const nose = new THREE.Mesh(
-	new THREE.ConeGeometry(0.3, 0.7, 32),
-	new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.6 })
-);
-nose.position.y = 1.3;
-rocket.add(nose);
-
-// fuego
-const flame = new THREE.Mesh(
-	new THREE.ConeGeometry(0.25, 0.8, 16),
-	new THREE.MeshStandardMaterial({
-		color: 0xff6600,
-		emissive: 0xff2200,
-		emissiveIntensity: 2,
-	})
-);
-flame.position.y = -1.4;
-flame.rotation.x = Math.PI;
-rocket.add(flame);
-
-// luz roja parpadeante
-const tipLight = new THREE.PointLight(0xff0000, 2, 10);
-tipLight.position.set(0, 1.5, 0);
-rocket.add(tipLight);
-
 scene.add(rocket);
 rocket.rotation.x = Math.PI / 2;
 rocket.position.set(0, 0, 0);
+
+// Player collider: un objeto simple (esfera) que servirá como punto/volumen de colisión.
+// Se añade como hijo de `rocket` para que siga su posición. Puedes ocultarlo
+// llamando a `setPlayerColliderVisible(false)` desde la consola o desde otras partes.
+const playerCollider = new THREE.Mesh(
+	new THREE.SphereGeometry(0.6, 12, 12),
+	new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, visible: true })
+);
+playerCollider.name = 'playerCollider';
+playerCollider.position.set(0, 0, 0);
+rocket.add(playerCollider);
+
+// Función para alternar visibilidad del collider (expuesta globalmente)
+function setPlayerColliderVisible(visible) {
+	playerCollider.visible = !!visible;
+}
+window.setPlayerColliderVisible = setPlayerColliderVisible;
+// Flag para habilitar/deshabilitar la participación del collider en la detección de colisiones
+let playerColliderEnabled = true;
+function setPlayerColliderEnabled(enabled) {
+	playerColliderEnabled = !!enabled;
+}
+window.setPlayerColliderEnabled = setPlayerColliderEnabled;
+
+// === Pantalla de inicio (menu) ===
+function setupStartMenu() {
+	const menu = document.getElementById('startMenu');
+	const select = document.getElementById('shipSelectStart');
+	const startBtn = document.getElementById('startGameBtn');
+	const cancelBtn = document.getElementById('cancelStartBtn');
+	const startInfo = document.getElementById('startInfo');
+
+	if (!menu || !select) return;
+
+		// --- Preview image (static) ---
+		const previewImage = document.getElementById('previewImage');
+		// The preview will now show a static image instead of a mini 3D canvas.
+		// Place images at: assets/models/previews/<modelFileNameWithoutExt>.png (e.g. ship1.png)
+
+		function getPreviewCandidates(url) {
+			const parts = url.split('/');
+			const name = parts[parts.length - 1] || '';
+			const base = name.replace(/\.glb$/i, '').replace(/\.gltf$/i, '').replace(/\s+/g, '_');
+			// candidate paths (try multiple locations / extensions)
+			// also try an alternative naming like 'ship_1' if originals use underscores
+			const underscored = base.replace(/([a-zA-Z]+)(\d+)$/, '$1_$2');
+			return [
+				`assets/models/previews/${base}.png`,
+				`assets/models/previews/${base}.jpg`,
+				`assets/models/previews/${base}.jpeg`,
+				`assets/models/previews/${underscored}.png`,
+				`assets/models/previews/${underscored}.jpg`,
+				`assets/models/previews/game/${base}.png`,
+				`assets/models/previews/game/${base}.jpg`,
+				`assets/models/previews/game/${underscored}.png`,
+				`assets/models/previews/placeholder.png`
+			];
+		}
+
+		function setPreviewImage(url) {
+			if (!previewImage) return;
+			const candidates = getPreviewCandidates(url);
+			let idx = 0;
+			previewImage.onerror = function () {
+				idx++;
+				if (idx < candidates.length) {
+					previewImage.src = candidates[idx];
+				} else {
+					// give up and clear handler
+					previewImage.onerror = null;
+				}
+			};
+			previewImage.src = candidates[0];
+		}
+
+		async function preview(url) {
+			try {
+				if (startInfo) { startInfo.style.display = 'block'; startInfo.textContent = 'Previsualizando...'; }
+				const preset = getPresetForUrl(url);
+				// Instead of loading a 3D preview, show a static preview image.
+				try {
+					setPreviewImage(url);
+				} catch (e) {
+					console.warn('No se pudo establecer la imagen de previsualización:', e);
+				}
+				if (startInfo) { startInfo.textContent = 'Previsualización lista'; setTimeout(() => startInfo.style.display = 'none', 800); }
+			} catch (err) {
+				console.error('Error previsualizando nave:', err);
+				if (startInfo) { startInfo.textContent = 'Error al previsualizar (ver consola)'; setTimeout(() => startInfo.style.display = 'none', 1600); }
+			}
+		}
+
+		// Preview when selection changes
+		select.addEventListener('change', (e) => preview(e.target.value));
+
+		// initial preview for selected ship (apply preset)
+		preview(select.value);
+
+	startBtn.addEventListener('click', async () => {
+		// when starting, load the selected ship into the main rocket with preset
+		const url = select.value;
+		const preset = getPresetForUrl(url);
+		try {
+			await loadInto(rocket, url);
+						// apply preset to main rocket
+						setScaleOnParent(rocket, preset.scale);
+						// position the loaded ship (child) relative to the rocket parent so the collider stays at origin
+						try { setPositionOnParent(rocket, ...(preset.position || [0,0,0])); } catch(e) {}
+						try { setRotationOnParent(rocket, ...(preset.rotation || [0,0,0])); } catch(e) {}
+						// set collider radius for this ship
+						try {
+							const radius = preset.colliderRadius || 0.45;
+							rocket.getObjectByName('playerCollider').geometry.dispose();
+							rocket.getObjectByName('playerCollider').geometry = new THREE.SphereGeometry(radius, 12, 12);
+						} catch (e) {
+							// ignore if collider not found
+						}
+			// manage rotating objects
+			clearRotatingObjects();
+			if (preset.autoRotate) {
+			  const o = rocket.getObjectByName('loadedShip');
+			  if (o) rotatingObjects.push(o);
+			}
+		} catch (err) {
+			console.error('Error cargando nave al comenzar:', err);
+		}
+		menu.style.display = 'none';
+		gamePaused = false; // start game loop
+	});
+
+	cancelBtn.addEventListener('click', () => {
+		menu.style.display = 'none';
+		gamePaused = false; // start game loop without changes
+	});
+}
+
+// initialize menu when DOM ready
+window.addEventListener('DOMContentLoaded', setupStartMenu);
+
+// rotating objects in-game (used when a preset wants autoRotate)
+const rotatingObjects = [];
+
+function clearRotatingObjects() {
+	rotatingObjects.length = 0;
+}
 
 // ====== PLANETAS ======
 const planetData = [
@@ -187,7 +298,7 @@ document.body.appendChild(infoBox);
 const keys = {};
 const SPEED = 0.12;
 let collisionCooldown = false;
-let gamePaused = false; // 🔹 para frenar todo
+let gamePaused = true; // start paused until player begins from the menu
 
 window.addEventListener("keydown", (e) => {
 	if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code))
@@ -209,7 +320,14 @@ function updateRocket() {
 // ====== COLISIONES ======
 function checkCollisions() {
 	if (collisionCooldown) return;
-	const box = new THREE.Box3().setFromObject(rocket);
+	// Usamos el collider (si existe) para las colisiones; si no, caemos al grupo completo
+	const collider = rocket.getObjectByName('playerCollider');
+	if (collider) {
+		if (!playerColliderEnabled) return; // collider deshabilitado
+		var box = new THREE.Box3().setFromObject(collider);
+	} else {
+		var box = new THREE.Box3().setFromObject(rocket);
+	}
 	for (const planet of planets) {
 		const pBox = new THREE.Box3().setFromObject(planet);
 		if (box.intersectsBox(pBox)) {
@@ -222,15 +340,11 @@ function checkCollisions() {
 function handleCollision(planet) {
 	collisionCooldown = true;
 	gamePaused = true; // 🔹 pausa global
-
-	const originalColor = body.material.color.getHex();
-	body.material.color.set(0xffff00);
 	infoBox.innerHTML = `<strong>${planet.userData.name}</strong> — ${planet.userData.info}`;
 	infoBox.style.display = "block";
 
 	setTimeout(() => {
 		infoBox.style.display = "none";
-		body.material.color.set(originalColor);
 		resetPlanet(planet);
 		collisionCooldown = false;
 		gamePaused = false; // 🔹 reanuda todo
@@ -248,8 +362,14 @@ function animate() {
 			if (p.position.z > 5) resetPlanet(p);
 			p.rotation.y += 0.01;
 		});
-		flame.scale.y = 1 + Math.sin(Date.now() * 0.05) * 0.3;
-		tipLight.intensity = 1 + Math.sin(Date.now() * 0.02) * 0.5;
+		// no flame/tipLight - the loaded ship model will show its own effects if any
+	}
+
+	// rotate any objects flagged for auto-rotate
+	if (rotatingObjects.length) {
+		for (const obj of rotatingObjects) {
+			if (obj && obj.rotation) obj.rotation.y += 0.01;
+		}
 	}
 
 	checkCollisions();

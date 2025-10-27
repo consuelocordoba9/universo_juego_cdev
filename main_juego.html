@@ -65,8 +65,51 @@
     • Evitá chocar con los planetas
   </div>
 
+  <!-- Pantalla de inicio: elegir nave y ajustes (estos controles NO aparecen en el juego) -->
+  <div id="startMenu" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.85)); z-index:50;">
+    <div style="width:420px; max-width:92%; background:#071024; padding:18px; border-radius:10px; color:#fff; box-shadow:0 10px 30px rgba(0,0,0,0.6);">
+      <h2 style="margin:0 0 10px 0; font-family:Arial">Selecciona tu nave</h2>
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <div style="flex:1;">
+          <label for="shipSelectStart">Nave:</label>
+          <select id="shipSelectStart" style="width:100%; display:block; margin:8px 0 12px 0; padding:6px;">
+        <option value="./assets/models/ships/ship1.glb">Ship 1</option>
+        <option value="./assets/models/ships/ship2.glb">Ship 2</option>
+        <option value="./assets/models/ships/ship3.glb">Ship 3</option>
+          </select>
+          <div style="color:#cfe6ff; font-size:13px; margin-top:6px">Elige tu nave y pulsa "Comenzar" para entrar al juego.</div>
+        </div>
+
+        <!-- Preview area (now a static image placeholder) -->
+        <div id="previewWrapper" style="width:220px; height:160px; background:#02111a; border-radius:8px; padding:6px; box-shadow:inset 0 0 30px rgba(0,0,0,0.6); display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <div style="font-size:12px; color:#9fd5ff; margin-bottom:6px; text-align:center">Previsualización</div>
+          <!-- Place an image file in assets/models/previews/ named to match the model (e.g. ship1.png) -->
+          <img id="previewImage" src="assets/models/previews/placeholder.png" alt="Preview" style="max-width:100%; max-height:100%; border-radius:4px; object-fit:contain; background:#02111a;" />
+        </div>
+      </div>
+
+      <!-- Ajustes avanzados eliminados: el tamaño/posición ahora se configuran desde
+           `src/ship/shipConfig.js`. -->
+
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
+        <button id="startGameBtn" style="padding:8px 12px; background:#2a9d8f; border:none; color:#fff; border-radius:6px; cursor:pointer">Comenzar</button>
+        <button id="cancelStartBtn" style="padding:8px 12px; background:#444; border:none; color:#fff; border-radius:6px; cursor:pointer">Cerrar</button>
+      </div>
+      <div id="startInfo" style="margin-top:8px; color:#cfe6ff; font-size:13px; display:none">Previsualizando...</div>
+    </div>
+  </div>
+
   <!-- Cargamos THREE.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Import map para resolver importaciones tipo 'three' en módulos ESM (necesario para loaders) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+      "three/": "https://cdn.jsdelivr.net/npm/three@0.128.0/"
+    }
+  }
+  </script>
   <!-- Cargamos el script del juego -->
   <script type="module" src="main_juego.js"></script>
 </body>

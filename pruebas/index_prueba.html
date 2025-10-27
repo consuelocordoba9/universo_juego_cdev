@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Index Prueba - Visor de Modelos</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #0a0a12; color: #ddd; }
+    #ui { position: absolute; z-index: 10; left: 12px; top: 12px; background: rgba(0,0,0,0.45); padding: 10px; border-radius: 6px; }
+    #canvasContainer { width: 100vw; height: 100vh; }
+    label, select { color: #fff; }
+    #info { margin-top: 8px; font-size: 13px; color: #cfd8ff; }
+  </style>
+</head>
+<body>
+  <!-- Import map para resolver specifiers como 'three' a módulos ESM en unpkg/jsdelivr -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+      "three/": "https://cdn.jsdelivr.net/npm/three@0.128.0/"
+    }
+  }
+  </script>
+
+  <div id="ui">
+    <label for="modelSelect">Elegir modelo de nave:</label>
+    <select id="modelSelect">
+      <option value="../assets/models/ships/ship1.glb">Ship 1</option>
+      <option value="../assets/models/ships/ship2.glb">Ship 2</option>
+      <option value="../assets/models/ships/ship3.glb">Ship 3</option>
+    </select>
+    <div id="info">Listo</div>
+    <div style="margin-top:8px;">
+      <label style="font-size:13px"><input type="checkbox" id="axesToggle" checked> Mostrar ejes</label>
+    </div>
+    <div style="margin-top:6px;">
+      <label style="font-size:13px"><input type="checkbox" id="colliderToggle" checked> Mostrar esfera de colisiones</label>
+    </div>
+  </div>
+
+  <div id="canvasContainer"></div>
+
+  <script type="module" src="viewer_prueba.js"></script>
+</body>
+</html>
