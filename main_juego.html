@@ -51,6 +51,59 @@
       border-radius: 8px;
       z-index: 5;
     }
+
+    /* HUD superior derecho */
+    #hud {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(0, 0, 0, 0.45);
+      color: #e8f3ff;
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 14px;
+      z-index: 20;
+      border: 1px solid rgba(120,160,255,0.25);
+    }
+    #hud .stat { min-width: 80px; text-align: center; }
+    #hud .divider { width: 1px; height: 18px; background: rgba(255,255,255,0.15); }
+    .btn {
+      background: #2a9d8f;
+      border: none;
+      color: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+    .btn.secondary { background: #4a5568; }
+    .btn.warning { background: #e76f51; }
+
+    /* (Quiz eliminado) */
+
+    /* Game Over */
+    #gameOver {
+      position: fixed; inset: 0; display: none; align-items:center; justify-content: center; z-index: 70;
+      background: linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.9));
+    }
+    #gameOverBox {
+      width: 420px; max-width: 92%; background: #120a1f; color: #fff; border-radius: 10px; padding: 18px;
+      text-align: center; box-shadow: 0 10px 35px rgba(0,0,0,0.6); border: 1px solid rgba(120,160,255,0.25);
+    }
+    #gameOverStats { margin: 10px 0 14px 0; color: #cfe6ff; }
+
+    /* Enciclopedia */
+    #encyclopedia {
+      position: fixed; inset:0; display:none; z-index:65; background: rgba(0,0,0,0.75);
+      align-items: center; justify-content: center;
+    }
+    #encyBox { width: 820px; max-width: 95%; max-height: 85%; overflow:auto; background: #061020; color: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 10px 35px rgba(0,0,0,0.6); border: 1px solid rgba(120,160,255,0.25); }
+    #encyList { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .encyCard { background: #0d1a33; border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; padding: 12px; }
+    .encyCard h4 { margin: 0 0 6px 0; }
   </style>
 </head>
 <body>
@@ -93,9 +146,47 @@
 
       <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
         <button id="startGameBtn" style="padding:8px 12px; background:#2a9d8f; border:none; color:#fff; border-radius:6px; cursor:pointer">Comenzar</button>
-        <button id="cancelStartBtn" style="padding:8px 12px; background:#444; border:none; color:#fff; border-radius:6px; cursor:pointer">Cerrar</button>
       </div>
       <div id="startInfo" style="margin-top:8px; color:#cfe6ff; font-size:13px; display:none">Previsualizando...</div>
+    </div>
+  </div>
+
+  <!-- HUD (abajo a la derecha) -->
+  <div id="hud">
+    <div class="stat">Puntos: <span id="score">0</span></div>
+    <div class="divider"></div>
+    <div class="stat">Vidas: <span id="lives">3</span></div>
+    <div class="divider"></div>
+    <div class="stat">Velocidad: <span id="speed">1.00x</span></div>
+    <div class="divider"></div>
+    <div class="stat">Mejor: <span id="bestScore">0</span></div>
+    <div class="divider"></div>
+    <button id="pauseBtn" class="btn secondary">Pausa</button>
+    <button id="muteBtn" class="btn secondary">Silencio</button>
+    <button id="encyBtn" class="btn">Enciclopedia</button>
+  </div>
+  
+
+  <!-- Game Over -->
+  <div id="gameOver">
+    <div id="gameOverBox">
+      <h2 style="margin:0 0 6px 0">Game Over</h2>
+      <div id="gameOverStats">Puntos: <span id="finalScore">0</span> · Mejor: <span id="finalBest">0</span></div>
+      <div style="display:flex; gap:10px; justify-content:center;">
+        <button id="restartBtn" class="btn">Reintentar</button>
+        <button id="goMenuBtn" class="btn secondary">Menú</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enciclopedia -->
+  <div id="encyclopedia">
+    <div id="encyBox">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="margin:0">Enciclopedia Planetaria</h3>
+  <button id="encyClose" class="btn warning">Cerrar Enciclopedia</button>
+      </div>
+      <div id="encyList"></div>
     </div>
   </div>
 

@@ -1,9 +1,20 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js";
+import { EffectComposer } from "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/postprocessing/ShaderPass.js";
+import { FXAAShader } from "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/shaders/FXAAShader.js";
+import { RoomEnvironment } from "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/environments/RoomEnvironment.js";
+import { Lensflare, LensflareElement } from "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/objects/Lensflare.js";
 import { loadInto, setScaleOnParent, setPositionOnParent, disposeCurrent, setRotationOnParent } from './src/ship/shipManager.js';
 import { getPresetForUrl } from './src/ship/shipConfig.js';
 // ====== ESCENA, CÁMARA Y RENDER ======
 const scene = new THREE.Scene();
 const spaceTexture = new THREE.TextureLoader().load("./textures/space_bg.jpg");
+// Niebla exponencial suave para dar profundidad visual (no afecta HUD)
+scene.fog = new THREE.FogExp2(0x02060f, 0.0025);
+// Aplicar gestión de color correcta a la textura de fondo
+spaceTexture.encoding = THREE.sRGBEncoding;
 scene.background = spaceTexture;
 
 const camera = new THREE.PerspectiveCamera(
@@ -17,17 +28,54 @@ camera.position.set(0, 1, 10);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// Mejora de calidad de imagen y luces físicas
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.physicallyCorrectLights = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
 document.body.style.margin = "0";
 document.body.style.overflow = "hidden";
 document.body.appendChild(renderer.domElement);
 
+// PMREM + entorno para mejorar materiales estándar/physically
+try {
+	const pmrem = new THREE.PMREMGenerator(renderer);
+	const envTex = pmrem.fromScene(new RoomEnvironment(), 0.02).texture;
+	scene.environment = envTex;
+} catch (e) {
+	console.warn('No se pudo inicializar el entorno PBR:', e);
+}
+
+// Valor de anisotropía máximo disponible
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1;
+
 // ====== LUCES ======
-const ambient = new THREE.AmbientLight(0x404040, 2);
-const point = new THREE.PointLight(0xffffff, 2);
+const ambient = new THREE.AmbientLight(0x404040, 0.8);
+const point = new THREE.PointLight(0xffffff, 10, 0, 2);
 point.position.set(0, 10, 10);
-scene.add(ambient, point);
+// Luz direccional tipo "Sol" desde el fondo
+const sunLightDir = new THREE.DirectionalLight(0xfff0c4, 1.4);
+sunLightDir.position.set(40, 20, -120);
+scene.add(ambient, point, sunLightDir);
+
+// Sprite/flare para el sol lejano (visual)
+try {
+	const textureLoader = new THREE.TextureLoader();
+	const flare0 = textureLoader.load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/textures/lensflare/lensflare0.png');
+	const flare3 = textureLoader.load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/textures/lensflare/lensflare3.png');
+	const lensflare = new Lensflare();
+	lensflare.addElement(new LensflareElement(flare0, 210, 0.0, new THREE.Color(0xfff3c6)));
+	lensflare.addElement(new LensflareElement(flare3, 120, 0.3));
+	lensflare.addElement(new LensflareElement(flare3, 70, 0.6));
+	lensflare.position.copy(sunLightDir.position);
+	scene.add(lensflare);
+} catch (e) {
+	console.warn('Lensflare no disponible:', e);
+}
 
 // ====== FONDO DE ESTRELLAS ======
+let starField = null;
 function createStars() {
 	const geo = new THREE.BufferGeometry();
 	const count = 5000;
@@ -49,10 +97,38 @@ function createStars() {
 		size: 1.4,
 		vertexColors: true,
 		transparent: true,
+		depthWrite: false,
+		blending: THREE.AdditiveBlending,
 	});
-	scene.add(new THREE.Points(geo, mat));
+	starField = new THREE.Points(geo, mat);
+	starField.frustumCulled = false;
+	scene.add(starField);
 }
 createStars();
+
+// ====== POSTPROCESADO (Bloom + FXAA) ======
+let composer = null;
+let bloomPass = null;
+let fxaaPass = null;
+let bloomEnabled = true;
+function setupPostprocessing() {
+    try {
+        composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+        bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.35, 0.6, 0.85);
+        bloomPass.enabled = bloomEnabled;
+        composer.addPass(bloomPass);
+        // FXAA opcional para suavizar bordes
+        fxaaPass = new ShaderPass(FXAAShader);
+        fxaaPass.material.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
+        composer.addPass(fxaaPass);
+    } catch (e) {
+        console.warn('Postprocesado no disponible:', e);
+        composer = null;
+    }
+}
+setupPostprocessing();
 
 // ====== COHETE ======
 // Reemplazamos la nave procedural por un grupo vacío: la nave real se cargará desde
@@ -90,7 +166,6 @@ function setupStartMenu() {
 	const menu = document.getElementById('startMenu');
 	const select = document.getElementById('shipSelectStart');
 	const startBtn = document.getElementById('startGameBtn');
-	const cancelBtn = document.getElementById('cancelStartBtn');
 	const startInfo = document.getElementById('startInfo');
 
 	if (!menu || !select) return;
@@ -191,10 +266,7 @@ function setupStartMenu() {
 		gamePaused = false; // start game loop
 	});
 
-	cancelBtn.addEventListener('click', () => {
-		menu.style.display = 'none';
-		gamePaused = false; // start game loop without changes
-	});
+	// (Botón Cerrar eliminado)
 }
 
 // initialize menu when DOM ready
@@ -262,12 +334,31 @@ const planetData = [
 const planets = [];
 planetData.forEach((d) => {
 	const tex = new THREE.TextureLoader().load(d.texture);
+	tex.encoding = THREE.SRGBEncoding;
+	tex.anisotropy = MAX_ANISO;
 	const p = new THREE.Mesh(
 		new THREE.SphereGeometry(d.size, 32, 32),
-		new THREE.MeshStandardMaterial({ map: tex })
+		new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.0 })
 	);
 	resetPlanet(p);
 	p.userData = d;
+	// Halo atmosférico sutil (visual)
+	try {
+		const halo = new THREE.Mesh(
+			new THREE.SphereGeometry(d.size * 1.06, 32, 32),
+			new THREE.MeshBasicMaterial({
+				color: new THREE.Color(d.name === 'Tierra' ? 0x66aaff : 0xffeecc),
+				transparent: true,
+				opacity: 0.08,
+				blending: THREE.AdditiveBlending,
+				depthWrite: false,
+				side: THREE.BackSide
+			})
+		);
+		p.add(halo);
+	} catch (e) {}
+	// Velocidad de rotación proporcional al tamaño (grandes rotan más lento)
+	p.userData.rotSpeed = Math.max(0.004, 0.014 - d.size * 0.004);
 	scene.add(p);
 	planets.push(p);
 });
@@ -294,11 +385,73 @@ infoBox.style.display = "none";
 infoBox.style.zIndex = "10";
 document.body.appendChild(infoBox);
 
+// ====== HUD y UI ======
+const hud = {
+	scoreEl: document.getElementById('score'),
+	livesEl: document.getElementById('lives'),
+	speedEl: document.getElementById('speed'),
+	bestScoreEl: document.getElementById('bestScore'),
+	pauseBtn: document.getElementById('pauseBtn'),
+	muteBtn: document.getElementById('muteBtn'),
+	encyBtn: document.getElementById('encyBtn')
+};
+const overUI = {
+	panel: document.getElementById('gameOver'),
+	score: document.getElementById('finalScore'),
+	best: document.getElementById('finalBest'),
+	restart: document.getElementById('restartBtn'),
+	menu: document.getElementById('goMenuBtn')
+};
+const encyUI = {
+	panel: document.getElementById('encyclopedia'),
+	list: document.getElementById('encyList'),
+	close: document.getElementById('encyClose')
+};
+
+// ====== Estado del juego ======
+let score = 0;
+let lives = 3;
+let bestScore = 0;
+try { bestScore = parseInt(localStorage.getItem('bestScore') || '0', 10) || 0; } catch(e) {}
+let speedMultiplier = 1; // aumenta con el puntaje
+let muted = false;
+
+function updateHUD() {
+	if (hud.scoreEl) hud.scoreEl.textContent = Math.floor(score).toString();
+	if (hud.livesEl) hud.livesEl.textContent = lives.toString();
+	if (hud.speedEl) hud.speedEl.textContent = `${speedMultiplier.toFixed(2)}x`;
+	if (hud.bestScoreEl) hud.bestScoreEl.textContent = bestScore.toString();
+}
+updateHUD();
+
+// ====== Sonidos simples (Web Audio) ======
+let audioCtx = null;
+function ensureAudio() {
+	if (!audioCtx) {
+		try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audioCtx = null; }
+	}
+}
+function beep(type = 'ok') {
+	if (muted) return;
+	ensureAudio();
+	if (!audioCtx) return;
+	const o = audioCtx.createOscillator();
+	const g = audioCtx.createGain();
+	o.connect(g); g.connect(audioCtx.destination);
+	const now = audioCtx.currentTime;
+	let freq = 440;
+	if (type === 'ok') freq = 660; else if (type === 'bad') freq = 220; else if (type === 'tick') freq = 520;
+	o.frequency.setValueAtTime(freq, now);
+	g.gain.setValueAtTime(0.12, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+	o.start(now); o.stop(now + 0.2);
+}
+
 // ====== MOVIMIENTO ======
 const keys = {};
 const SPEED = 0.12;
 let collisionCooldown = false;
 let gamePaused = true; // start paused until player begins from the menu
+let inModal = false; // bloquea controles cuando hay modal
 
 window.addEventListener("keydown", (e) => {
 	if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code))
@@ -308,7 +461,7 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => (keys[e.code] = false));
 
 function updateRocket() {
-	if (collisionCooldown || gamePaused) return;
+	if (collisionCooldown || gamePaused || inModal) return;
 	if (keys["ArrowUp"]) rocket.position.y += SPEED;
 	if (keys["ArrowDown"]) rocket.position.y -= SPEED;
 	if (keys["ArrowLeft"]) rocket.position.x -= SPEED;
@@ -340,6 +493,9 @@ function checkCollisions() {
 function handleCollision(planet) {
 	collisionCooldown = true;
 	gamePaused = true; // 🔹 pausa global
+	lives = Math.max(0, lives - 1);
+	updateHUD();
+	beep('bad');
 	infoBox.innerHTML = `<strong>${planet.userData.name}</strong> — ${planet.userData.info}`;
 	infoBox.style.display = "block";
 
@@ -347,21 +503,61 @@ function handleCollision(planet) {
 		infoBox.style.display = "none";
 		resetPlanet(planet);
 		collisionCooldown = false;
-		gamePaused = false; // 🔹 reanuda todo
-	}, 2000); // pausa global de 2 segundos
+		if (lives <= 0) {
+			endGame();
+		} else {
+			gamePaused = false; // 🔹 reanuda todo
+		}
+	}, 1600);
+}
+
+function endGame() {
+	gamePaused = true;
+	inModal = true;
+	try {
+		if (score > bestScore) { bestScore = Math.floor(score); localStorage.setItem('bestScore', bestScore.toString()); }
+	} catch(e) {}
+	updateHUD();
+	if (overUI.score) overUI.score.textContent = Math.floor(score).toString();
+	if (overUI.best) overUI.best.textContent = bestScore.toString();
+	if (overUI.panel) overUI.panel.style.display = 'flex';
+}
+
+function restartGame(toMenu=false) {
+	// reset state
+	score = 0; lives = 3; speedMultiplier = 1; updateHUD();
+	// reset positions of planets
+	planets.forEach(p => resetPlanet(p));
+	// (sin tokens/trivias)
+	if (overUI.panel) overUI.panel.style.display = 'none';
+	inModal = false;
+	if (toMenu) {
+		// show start menu again
+		const menu = document.getElementById('startMenu');
+		if (menu) menu.style.display = 'flex';
+		gamePaused = true;
+	} else {
+		gamePaused = false;
+	}
 }
 
 // ====== LOOP ======
 function animate() {
 	requestAnimationFrame(animate);
 
-	if (!gamePaused) {
+	if (!gamePaused && !inModal) {
 		updateRocket();
 		planets.forEach((p) => {
-			p.position.z += 0.5;
+			p.position.z += 0.5 * speedMultiplier;
 			if (p.position.z > 5) resetPlanet(p);
-			p.rotation.y += 0.01;
+			p.rotation.y += (p.userData.rotSpeed || 0.01);
 		});
+		// puntuación por tiempo (en tiempo real)
+		score += 0.05 * speedMultiplier;
+		updateHUD();
+		// ajustar velocidad según puntaje: cada 50 puntos, +0.15x
+		const targetSpeed = 1 + Math.floor(score / 50) * 0.15;
+		if (targetSpeed !== speedMultiplier) { speedMultiplier = targetSpeed; beep('tick'); updateHUD(); }
 		// no flame/tipLight - the loaded ship model will show its own effects if any
 	}
 
@@ -372,8 +568,17 @@ function animate() {
 		}
 	}
 
+	// sutil movimiento del campo estelar para dar vida
+	if (starField) {
+		starField.rotation.z += 0.0005;
+	}
+
 	checkCollisions();
-	renderer.render(scene, camera);
+	if (composer) {
+		composer.render();
+	} else {
+		renderer.render(scene, camera);
+	}
 }
 animate();
 
@@ -382,4 +587,49 @@ window.addEventListener("resize", () => {
 	camera.aspect = window.innerWidth / window.innerHeight;
 	camera.updateProjectionMatrix();
 	renderer.setSize(window.innerWidth, window.innerHeight);
+	if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+	if (fxaaPass) fxaaPass.material.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
 });
+
+// (Se eliminaron tokens y trivias)
+
+// ====== Botones HUD ======
+if (hud.pauseBtn) hud.pauseBtn.addEventListener('click', () => {
+	gamePaused = !gamePaused;
+	hud.pauseBtn.textContent = gamePaused ? 'Reanudar' : 'Pausa';
+});
+if (hud.muteBtn) hud.muteBtn.addEventListener('click', () => {
+	muted = !muted;
+	hud.muteBtn.textContent = muted ? 'Activar Sonido' : 'Silencio';
+	if (!muted) beep('tick');
+});
+// Toggle de Bloom con tecla B y pista en instrucciones
+window.addEventListener('keydown', (e) => {
+	if (e.code === 'KeyB') {
+		bloomEnabled = !bloomEnabled;
+		if (bloomPass) bloomPass.enabled = bloomEnabled;
+		beep('tick');
+	}
+});
+try {
+	const instr = document.getElementById('instructions');
+	if (instr) instr.innerHTML += '<br>• Tecla B: activar/desactivar brillo (bloom)';
+} catch (e) {}
+if (overUI.restart) overUI.restart.addEventListener('click', () => restartGame(false));
+if (overUI.menu) overUI.menu.addEventListener('click', () => restartGame(true));
+
+// ====== Enciclopedia ======
+function buildEncyclopedia() {
+	if (!encyUI.list) return;
+	encyUI.list.innerHTML = '';
+	for (const d of planetData) {
+		const card = document.createElement('div'); card.className = 'encyCard';
+		const img = document.createElement('img'); img.src = d.texture; img.alt = d.name; img.style.maxWidth = '100%'; img.style.borderRadius = '6px'; img.style.display = 'block'; img.style.marginBottom = '6px';
+		const h = document.createElement('h4'); h.textContent = d.name;
+		const p = document.createElement('div'); p.textContent = d.info;
+		card.appendChild(img); card.appendChild(h); card.appendChild(p);
+		encyUI.list.appendChild(card);
+	}
+}
+if (hud.encyBtn) hud.encyBtn.addEventListener('click', () => { buildEncyclopedia(); encyUI.panel.style.display = 'flex'; inModal = true; gamePaused = true; });
+if (encyUI.close) encyUI.close.addEventListener('click', () => { encyUI.panel.style.display = 'none'; inModal = false; gamePaused = false; });
