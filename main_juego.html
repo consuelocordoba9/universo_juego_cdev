@@ -98,6 +98,11 @@
     <div id="progressCounter" style="background:rgba(0,0,0,0.6); padding:8px 14px; border-radius:8px; color:#fff; font-weight:700; font-size:18px;">0/8</div>
   </div>
 
+  <!-- PRE-GAME COUNTDOWN OVERLAY (3→2→1) -->
+  <div id="countdownOverlay" style="display:none; position:fixed; inset:0; z-index:110; align-items:center; justify-content:center; pointer-events:none;">
+    <div id="countdownNumber" style="font-size:140px; font-weight:900; color:#ffffff; text-shadow:0 14px 48px rgba(0,0,0,0.75);">3</div>
+  </div>
+
   <!-- COLLISION INFO OVERLAY (temporary, 3sec pause) -->
   <div id="collisionInfoOverlay" style="display:none; position:fixed; inset:0; z-index:100; align-items:center; justify-content:center; pointer-events:none;">
     <div style="background: linear-gradient(135deg, rgba(10,30,60,0.96), rgba(5,15,35,0.98)); border: 2px solid rgba(100,180,255,0.15); width:560px; max-width:90%; padding:28px 32px; border-radius:16px; box-shadow: 0 20px 70px rgba(0,0,0,0.8); backdrop-filter: blur(8px); text-align:center; color:#fff;">

@@ -140,6 +140,15 @@ function setupStartMenu() {
 				}
 				// also make sure collisionCooldown is cleared so the menu state is stable
 				collisionCooldown = false;
+				// cancel countdown if running and hide overlay
+				if (countdownTimerId !== null) {
+					clearTimeout(countdownTimerId);
+					countdownTimerId = null;
+					try {
+						const cdo = document.getElementById('countdownOverlay');
+						if (cdo) cdo.style.display = 'none';
+					} catch (ee) {}
+				}
 			} catch (err) {}
 			menu.style.display = 'flex';
 			// pause the game when returning to the menu
@@ -267,7 +276,8 @@ function setupStartMenu() {
 			console.error('Error cargando nave al comenzar:', err);
 		}
 		menu.style.display = 'none';
-		gamePaused = false; // start game loop
+		// start a pre-game 3-second countdown before unpausing
+		try { startPreGameCountdown(3); } catch(e) { gamePaused = false; }
 		try { if (backToMenuBtn) backToMenuBtn.style.display = 'block'; } catch(e) {}
 	});
 
@@ -504,6 +514,39 @@ function updateHUD() {
 			if (i < lives) el.style.opacity = '1'; else el.style.opacity = '0.18';
 		});
 	}
+}
+
+// ===== Pre-game countdown (3→2→1) =====
+function startPreGameCountdown(seconds = 3) {
+	const overlay = document.getElementById('countdownOverlay');
+	const numberEl = document.getElementById('countdownNumber');
+	// if overlay is missing, just start immediately
+	if (!overlay || !numberEl) { gamePaused = false; return; }
+
+	// ensure previous countdown is cleared
+	if (countdownTimerId !== null) {
+		try { clearTimeout(countdownTimerId); } catch(e) {}
+		countdownTimerId = null;
+	}
+
+	gamePaused = true; // keep the game paused during countdown
+	overlay.style.display = 'flex';
+	let remaining = Math.max(1, Math.floor(seconds));
+	numberEl.textContent = String(remaining);
+
+	function tick() {
+		remaining -= 1;
+		if (remaining > 0) {
+			numberEl.textContent = String(remaining);
+			countdownTimerId = setTimeout(tick, 1000);
+		} else {
+			// end countdown
+			overlay.style.display = 'none';
+			countdownTimerId = null;
+			gamePaused = false; // start the game
+		}
+	}
+	countdownTimerId = setTimeout(tick, 1000);
 }
 
 function findNextTarget(fromIdx) {
@@ -751,6 +794,15 @@ function resetGame() {
 	gamePaused = true;
 	// cancel any pending collision resume timeout
 	try { if (collisionTimeoutId !== null) { clearTimeout(collisionTimeoutId); collisionTimeoutId = null; } } catch(e) {}
+	// cancel and hide any countdown overlay
+	try {
+		if (countdownTimerId !== null) {
+			clearTimeout(countdownTimerId);
+			countdownTimerId = null;
+		}
+		const cdo = document.getElementById('countdownOverlay');
+		if (cdo) cdo.style.display = 'none';
+	} catch(e) {}
 
 	// reset score/targets/lives UI state
 	score = 0; lives = 3; currentTargetIndex = findNextTarget(-1); markTarget(currentTargetIndex); try { renderTargetList(); updateHUD(); } catch(e) {}
@@ -763,6 +815,8 @@ let collisionCooldown = false;
 let gamePaused = true; // start paused until player begins from the menu
 // collision timeout id (so we can cancel it if menu is shown)
 let collisionTimeoutId = null;
+// countdown timer id (to cancel if user returns to menu)
+let countdownTimerId = null;
 // Global speed multiplier for the whole game (affects movement, planet speed, rotations)
 let globalGameSpeed = 1.0;
 
