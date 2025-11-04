@@ -576,6 +576,90 @@ function ensureParticleEmitter(planet) {
 	} catch (e) { console.warn('create particle emitter failed', e); }
 }
 
+// ===== Explosion effect for wrong planet collision =====
+function explodePlanet(planet) {
+	if (!planet) return;
+	try {
+		const baseR = (planet.geometry && planet.geometry.parameters && planet.geometry.parameters.radius) ? planet.geometry.parameters.radius : (planet.userData && planet.userData.size) || 1.0;
+		const particleCount = Math.max(60, Math.floor(baseR * 100));
+		const positions = new Float32Array(particleCount * 3);
+		const velocities = [];
+		
+		// Create explosion particles at planet center
+		const pPos = new THREE.Vector3();
+		planet.getWorldPosition(pPos);
+		
+		for (let i = 0; i < particleCount; i++) {
+			positions[i*3] = pPos.x;
+			positions[i*3+1] = pPos.y;
+			positions[i*3+2] = pPos.z;
+			// random outward velocity
+			const speed = 0.8 + Math.random() * 1.2;
+			const theta = Math.random() * Math.PI * 2;
+			const phi = Math.acos(2 * Math.random() - 1);
+			velocities.push({
+				x: speed * Math.sin(phi) * Math.cos(theta),
+				y: speed * Math.sin(phi) * Math.sin(theta),
+				z: speed * Math.cos(phi)
+			});
+		}
+		
+		const geom = new THREE.BufferGeometry();
+		const posAttr = new THREE.BufferAttribute(positions, 3);
+		posAttr.setUsage(THREE.DynamicDrawUsage);
+		geom.setAttribute('position', posAttr);
+		const mat = new THREE.PointsMaterial({ 
+			color: 0xff6633, 
+			size: baseR * 0.12, 
+			transparent: true, 
+			opacity: 1.0, 
+			depthWrite: false 
+		});
+		const explosion = new THREE.Points(geom, mat);
+		explosion.name = 'explosionEffect';
+		scene.add(explosion);
+		
+		// Animate explosion (expand and fade out over 1 second)
+		const startTime = performance.now();
+		const duration = 1000; // 1 second
+		
+		function animateExplosion() {
+			const now = performance.now();
+			const elapsed = now - startTime;
+			const progress = Math.min(elapsed / duration, 1);
+			
+			if (progress < 1) {
+				// Update particle positions
+				const pos = explosion.geometry.attributes.position.array;
+				for (let i = 0; i < particleCount; i++) {
+					pos[i*3] += velocities[i].x * 0.08;
+					pos[i*3+1] += velocities[i].y * 0.08;
+					pos[i*3+2] += velocities[i].z * 0.08;
+				}
+				explosion.geometry.attributes.position.needsUpdate = true;
+				
+				// Fade out
+				explosion.material.opacity = 1.0 - progress;
+				explosion.material.size = baseR * (0.12 + progress * 0.08);
+				
+				requestAnimationFrame(animateExplosion);
+			} else {
+				// Remove explosion after animation
+				try {
+					scene.remove(explosion);
+					explosion.geometry.dispose();
+					explosion.material.dispose();
+				} catch(e) {}
+			}
+		}
+		animateExplosion();
+		
+		// Hide the planet temporarily during explosion
+		planet.visible = false;
+		
+	} catch (e) { console.warn('explodePlanet failed', e); }
+}
+
 function showEndMessage(text) {
 	// Show the new centered overlay with restart and reload options
 	try {
@@ -762,7 +846,7 @@ function checkCollisions() {
 function handleCollision(planet) {
 	// basic cooldown to avoid multiple triggers
 	collisionCooldown = true;
-	setTimeout(() => { collisionCooldown = false; }, 220);
+	// NOTE: Don't reset cooldown here - let it be reset after the pause completes
 
 	// determine index of planet
 	const idx = planets.indexOf(planet);
@@ -810,28 +894,51 @@ function handleCollision(planet) {
 			} else {
 				gamePaused = false; // resume
 			}
+			// Reset cooldown AFTER the pause completes
+			collisionCooldown = false;
 		}, 3000);
 
 	} else {
-		// incorrect collision: lose a life
+		// incorrect collision: lose a life, explode planet, pause 1 second
 		lives -= 1;
 		try { updateHUD(); } catch(e) {}
+		
+		// EXPLODE the planet
+		try { explodePlanet(planet); } catch(e) { console.warn('explodePlanet failed', e); }
+		
+		// PAUSE GAME for 1 second
+		gamePaused = true;
+		
 		// small bounce-back
 		try {
 			const v = new THREE.Vector3(); planet.getWorldPosition(v);
 			rocket.position.x += (rocket.position.x - v.x) * 0.2;
 			rocket.position.y += (rocket.position.y - v.y) * 0.2;
 		} catch(e) {}
-		// show message briefly in infoBox
+		
+		// show life lost message briefly
 		try {
-			infoBox.innerHTML = `<strong>Wrong!</strong> Ese no es el objetivo.`;
+			infoBox.innerHTML = `<strong>¡Perdiste una vida!</strong> Planeta incorrecto.`;
 			infoBox.style.display = 'block';
-			setTimeout(()=>{ infoBox.style.display = 'none'; }, 900);
 		} catch(e) {}
-		// check defeat
-		if (lives <= 0) {
-			showEndMessage('GAME OVER – Recargá la página para volver a intentar');
-		}
+		
+		// After 1 second: hide message, respawn planet, resume or game over
+		setTimeout(() => {
+			try { infoBox.style.display = 'none'; } catch(e) {}
+			// respawn the exploded planet
+			try { 
+				planet.visible = true;
+				resetPlanet(planet); 
+			} catch(e) {}
+			// check defeat
+			if (lives <= 0) {
+				showEndMessage('GAME OVER – Recargá la página para volver a intentar');
+			} else {
+				gamePaused = false; // resume
+			}
+			// Reset cooldown AFTER the pause completes
+			collisionCooldown = false;
+		}, 1000); // 1 second pause
 	}
 }
 
