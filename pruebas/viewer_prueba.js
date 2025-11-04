@@ -38,6 +38,7 @@ scene.add(stars);
 
 // Axes helper (will be attached to the modelGroup so its center matches the collision point)
 const axes = new THREE.AxesHelper(1.5);
+axes.name = 'modelAxes';
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0.5, 0);
@@ -94,6 +95,8 @@ async function loadModel(url) {
   try {
     disposeCurrent(modelGroup);
   } catch (e) {}
+  // ensure the scene-level planet is visible when loading a ship
+  try { planet.visible = true; } catch (e) {}
   // load via shipManager so centering/material tweaks match the game
   try {
     await loadInto(modelGroup, url);
@@ -147,6 +150,49 @@ if (colliderToggle) {
   });
   // set initial state (if viewerCollider exists)
   try { viewerCollider.visible = colliderToggle.checked; } catch (err) {}
+}
+
+// Planet preview selector
+const planetSelect = document.getElementById('planetSelect');
+const planetSizes = {
+  mercury: 0.5,
+  venus: 0.8,
+  earth: 0.9,
+  mars: 0.7,
+  jupiter: 1.2,
+  saturn: 1.0,
+  uranus: 0.8,
+  neptune: 0.7
+};
+
+function showPlanetPreview(key) {
+  try { disposeCurrent(modelGroup); } catch (e) {}
+  if (!key || key === 'none') {
+    try { planet.visible = true; } catch (e) {}
+    return;
+  }
+  const texPath = `../textures/${key}.jpg`;
+  const loader = new THREE.TextureLoader();
+  const mat = new THREE.MeshStandardMaterial({ map: loader.load(texPath), roughness: 0.7, metalness: 0.05 });
+  const size = planetSizes[key] || 0.8;
+  const geo = new THREE.SphereGeometry(size, 48, 48);
+  const mesh = new THREE.Mesh(geo, mat);
+  // name as 'loadedShip' so disposeCurrent(parent) will remove it consistently
+  mesh.name = 'loadedShip';
+  // place at origin so modelGroup axes/collider are meaningful
+  mesh.position.set(0, 0, 0);
+  modelGroup.add(mesh);
+  // hide the small scene-planet (if present) to avoid confusion
+  try { planet.visible = false; } catch (e) {}
+}
+
+if (planetSelect) {
+  planetSelect.addEventListener('change', (e) => {
+    const v = e.target.value;
+    // when selecting a planet, clear the ship select
+    try { select.value = select.value; } catch (e) {}
+    showPlanetPreview(v);
+  });
 }
 
 function animate() {

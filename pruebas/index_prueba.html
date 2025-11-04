@@ -6,9 +6,9 @@
   <title>Index Prueba - Visor de Modelos</title>
   <style>
     body { margin: 0; font-family: Arial, sans-serif; background: #0a0a12; color: #ddd; }
-    #ui { position: absolute; z-index: 10; left: 12px; top: 12px; background: rgba(0,0,0,0.45); padding: 10px; border-radius: 6px; }
+    #ui { position: absolute; z-index: 10; left: 12px; top: 12px; background: rgba(142, 36, 156, 0.45); padding: 10px; border-radius: 6px; }
     #canvasContainer { width: 100vw; height: 100vh; }
-    label, select { color: #fff; }
+    label, select { color: #000000; }
     #info { margin-top: 8px; font-size: 13px; color: #cfd8ff; }
   </style>
 </head>
@@ -36,6 +36,20 @@
     </div>
     <div style="margin-top:6px;">
       <label style="font-size:13px"><input type="checkbox" id="colliderToggle" checked> Mostrar esfera de colisiones</label>
+    </div>
+    <div style="margin-top:8px;">
+      <label for="planetSelect" style="font-size:13px">Elegir planeta para previsualizar:</label>
+      <select id="planetSelect" style="display:block; margin-top:6px; padding:6px; width:160px;">
+        <option value="none">-- Ninguno --</option>
+        <option value="mercury">Mercurio</option>
+        <option value="venus">Venus</option>
+        <option value="earth">Tierra</option>
+        <option value="mars">Marte</option>
+        <option value="jupiter">Júpiter</option>
+        <option value="saturn">Saturno</option>
+        <option value="uranus">Urano</option>
+        <option value="neptune">Neptuno</option>
+      </select>
     </div>
   </div>
 

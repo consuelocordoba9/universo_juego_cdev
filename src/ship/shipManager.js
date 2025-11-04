@@ -65,7 +65,7 @@ export function loadInto(parent, url) {
             const mats = Array.isArray(mat) ? mat : [mat];
             mats.forEach((m) => {
               // Only touch standard/physical materials to avoid breaking special shaders
-              if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
+                if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
                 // keep a tiny emissive/rim effect so the ship stands out
                 try {
                   if (!m.userData) m.userData = {};
@@ -75,11 +75,14 @@ export function loadInto(parent, url) {
                       metalness: m.metalness ?? 0,
                     };
                   }
+                  // allow a global override for glow intensity
+                  const extraGlow = (typeof window !== 'undefined' && window.SHIP_GLOW_INTENSITY) ? window.SHIP_GLOW_INTENSITY : 0.8;
                   m.emissive = m.emissive || new THREE.Color(0x000000);
-                  m.emissive.add(new THREE.Color(0x101020));
-                  m.emissiveIntensity = (m.emissiveIntensity || 0) + 0.4;
-                  m.roughness = Math.max(0, (m.roughness ?? 1) - 0.15);
-                  m.metalness = Math.min(1, (m.metalness ?? 0) + 0.05);
+                  // add a subtle bluish rim so the ship 'pops'
+                  m.emissive.add(new THREE.Color(0x202040));
+                  m.emissiveIntensity = (m.emissiveIntensity || 0) + extraGlow;
+                  m.roughness = Math.max(0, (m.roughness ?? 1) - 0.18);
+                  m.metalness = Math.min(1, (m.metalness ?? 0) + 0.08);
                 } catch (e) {
                   // ignore any material mutations that fail for exotic materials
                 }
@@ -94,7 +97,8 @@ export function loadInto(parent, url) {
         // remove existing helper light if present
         const prevLight = parent.getObjectByName('shipInnerLight');
         if (prevLight) parent.remove(prevLight);
-        const inner = new THREE.PointLight(0xffffff, 0.7, 6);
+  const innerIntensity = (typeof window !== 'undefined' && window.SHIP_INNER_LIGHT_INTENSITY) ? window.SHIP_INNER_LIGHT_INTENSITY : 1.0;
+  const inner = new THREE.PointLight(0xfff8f0, innerIntensity, 8);
         inner.name = 'shipInnerLight';
         inner.position.set(0, 0.8, 1);
         parent.add(inner);
