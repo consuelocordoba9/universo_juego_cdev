@@ -281,11 +281,13 @@ function setupStartMenu() {
 		try { if (backToMenuBtn) backToMenuBtn.style.display = 'block'; } catch(e) {}
 	});
 
-	cancelBtn.addEventListener('click', () => {
-		menu.style.display = 'none';
-		gamePaused = false; // start game loop without changes
-		try { if (backToMenuBtn) backToMenuBtn.style.display = 'block'; } catch(e) {}
-	});
+	if (cancelBtn) {
+		cancelBtn.addEventListener('click', () => {
+			menu.style.display = 'none';
+			gamePaused = false; // start game loop without changes
+			try { if (backToMenuBtn) backToMenuBtn.style.display = 'block'; } catch(e) {}
+		});
+	}
 }
 
 // initialize menu when DOM ready
