@@ -1,12 +1,41 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Three.js Demo</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Choque de Planetas - Juego</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <script src="https://unpkg.com/three@0.156.1/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.156.1/examples/js/controls/OrbitControls.js"></script>
-  <script src="main.js" type="module"></script>
+  <div id="app">
+    <!-- Left sidebar: list of planets and current target highlighting -->
+    <aside id="sidebar">
+      <h2>Objetivos</h2>
+      <ul id="planetList" aria-live="polite"></ul>
+    </aside>
+
+    <!-- Main area: top counter, canvas game area, top-right hearts -->
+    <main id="main">
+      <div id="hud">
+        <div id="counter">0/8</div>
+        <div id="hearts" aria-label="Vidas">
+          <span class="heart filled">❤</span>
+          <span class="heart filled">❤</span>
+          <span class="heart filled">❤</span>
+        </div>
+      </div>
+
+      <div id="gameArea">
+        <canvas id="game" width="960" height="540"></canvas>
+      </div>
+    </main>
+  </div>
+
+  <!-- Overlay messages (victory / gameover) -->
+  <div id="overlay" class="hidden">
+    <div id="overlayContent"></div>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>

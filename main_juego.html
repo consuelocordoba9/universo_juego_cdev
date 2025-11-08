@@ -13,6 +13,18 @@
       font-family: Arial, sans-serif;
     }
 
+    /* full-screen background video */
+    #bgVideo {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+      pointer-events: none; /* allow clicks to pass to canvas/UI */
+      background: black;
+    }
+
     #infoBox {
       position: absolute;
       top: 20px;
@@ -59,14 +71,113 @@
     <div id="infoContent"></div>
   </div>
 
+  <!-- Background video (looping) -->
+  <video id="bgVideo" autoplay muted loop playsinline>
+    <source src="assets/backgrounds/hyperspace.mp4" type="video/mp4">
+    Tu navegador no soporta video en background.
+  </video>
+
+  <!-- Back to menu button (shown during gameplay) -->
+  <button id="backToMenuBtn" style="position:fixed; top:18px; right:18px; z-index:60; padding:8px 12px; background:#ff6b6b; color:#fff; border:none; border-radius:6px; cursor:pointer; display:none;">Volver al menú</button>
+
+  <!-- Sidebar targets and HUD -->
+  <aside id="targetSidebar" style="position:fixed; left:12px; top:60px; width:240px; z-index:40;">
+    <div style="background:linear-gradient(180deg, rgba(12,28,56,0.95), rgba(6,18,38,0.95)); padding:14px; border-radius:10px; border:1px solid rgba(255,255,255,0.06); box-shadow: 0 6px 20px rgba(0,0,0,0.6);">
+      <h3 style="margin:0 0 8px 0; color:#ffd; font-size:16px;">Objetivos</h3>
+      <ul id="targetList" style="list-style:none;padding:0;margin:0; max-height:60vh; overflow:auto; color:#fff;"></ul>
+    </div>
+  </aside>
+
+  <!-- HUD: lives centered at top, counter below -->
+  <div id="gameHUD" style="position:fixed; left:50%; transform:translateX(-50%); top:12px; z-index:45; display:flex; flex-direction:column; align-items:center; gap:8px;">
+    <div id="livesWrap" style="display:flex; gap:10px;">
+      <div class="life heart" data-idx="0" style="font-size:24px; color:#ff3b5c; opacity:1">❤</div>
+      <div class="life heart" data-idx="1" style="font-size:24px; color:#ff3b5c; opacity:1">❤</div>
+      <div class="life heart" data-idx="2" style="font-size:24px; color:#ff3b5c; opacity:1">❤</div>
+    </div>
+    <div id="progressCounter" style="background:rgba(0,0,0,0.6); padding:8px 14px; border-radius:8px; color:#fff; font-weight:700; font-size:18px;">0/8</div>
+  </div>
+
+  <!-- PRE-GAME COUNTDOWN OVERLAY (3→2→1) -->
+  <div id="countdownOverlay" style="display:none; position:fixed; inset:0; z-index:110; align-items:center; justify-content:center; pointer-events:none;">
+    <div id="countdownNumber" style="font-size:140px; font-weight:900; color:#ffffff; text-shadow:0 14px 48px rgba(0,0,0,0.75);">3</div>
+  </div>
+
+  <!-- COLLISION INFO OVERLAY (temporary, 3sec pause) -->
+  <div id="collisionInfoOverlay" style="display:none; position:fixed; inset:0; z-index:100; align-items:center; justify-content:center; pointer-events:none;">
+    <div style="background: linear-gradient(135deg, rgba(10,30,60,0.96), rgba(5,15,35,0.98)); border: 2px solid rgba(100,180,255,0.15); width:560px; max-width:90%; padding:28px 32px; border-radius:16px; box-shadow: 0 20px 70px rgba(0,0,0,0.8); backdrop-filter: blur(8px); text-align:center; color:#fff;">
+      <div id="collisionPlanetName" style="font-size:26px; font-weight:800; margin-bottom:10px; color:#6dd5ff; text-shadow:0 3px 12px rgba(0,0,0,0.5);"></div>
+      <div id="collisionPlanetInfo" style="font-size:16px; color:#d0e8ff; line-height:1.6; opacity:0.95;"></div>
+    </div>
+  </div>
+
+  <!-- END / GAMEOVER OVERLAY (centered, visually prominent) -->
+  <div id="endOverlay" style="display:none; position:fixed; inset:0; z-index:120; align-items:center; justify-content:center;">
+    <div style="background: linear-gradient(180deg, rgba(6,20,40,0.98), rgba(2,8,20,0.96)); border: 1px solid rgba(255,255,255,0.06); width:520px; max-width:92%; padding:26px; border-radius:14px; box-shadow: 0 18px 60px rgba(0,0,0,0.7); backdrop-filter: blur(6px); text-align:center; color:#fff;">
+      <div id="endTitle" style="font-size:28px; font-weight:800; letter-spacing:0.6px; margin-bottom:8px; color:#fff; text-shadow:0 4px 18px rgba(0,0,0,0.6)"></div>
+      <div id="endMessage" style="font-size:15px; color:#dbeeff; margin-bottom:18px; opacity:0.95;"></div>
+      <div style="display:flex; gap:12px; justify-content:center; align-items:center;">
+        <button id="restartBtn" style="background:linear-gradient(180deg,#3ee0b9,#1aa77f); border:none; color:#052017; font-weight:800; padding:10px 18px; border-radius:10px; cursor:pointer; box-shadow: 0 8px 24px rgba(26,167,127,0.18);">Reiniciar</button>
+        <button id="reloadBtn" style="background:transparent; border:1px solid rgba(255,255,255,0.12); color:#fff; padding:10px 16px; border-radius:10px; cursor:pointer;">Recargar página</button>
+      </div>
+      <div style="margin-top:14px; font-size:12px; color:#9fb8d9; opacity:0.9">Consejo: la lista de objetivos aparece a la izquierda. Buena suerte ;) </div>
+    </div>
+  </div>
+
   <div id="instructions">
     <strong>Controles:</strong><br>
     • Flechas para moverte<br>
     • Evitá chocar con los planetas
   </div>
 
+  <!-- Pantalla de inicio: elegir nave y ajustes (estos controles NO aparecen en el juego) -->
+  <div id="startMenu" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.85)); z-index:50;">
+    <div style="width:420px; max-width:92%; background:#071024; padding:18px; border-radius:10px; color:#fff; box-shadow:0 10px 30px rgba(0,0,0,0.6);">
+      <h2 style="margin:0 0 10px 0; font-family:Arial">Selecciona tu nave</h2>
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <div style="flex:1;">
+          <label for="shipSelectStart">Nave:</label>
+          <select id="shipSelectStart" style="width:100%; display:block; margin:8px 0 12px 0; padding:6px;">
+        <option value="./assets/models/ships/ship1.glb">Ship 1</option>
+        <option value="./assets/models/ships/ship2.glb">Ship 2</option>
+        <option value="./assets/models/ships/ship3.glb">Ship 3</option>
+          </select>
+          <div style="color:#cfe6ff; font-size:13px; margin-top:6px">Elige tu nave y pulsa "Comenzar" para entrar al juego.</div>
+          <div style="margin-top:10px; font-size:13px; color:#cfe6ff">
+            <label for="gameSpeedRange">Velocidad del juego: <span id="gameSpeedValue">1.0</span>x</label>
+            <input id="gameSpeedRange" type="range" min="0.8" max="2.0" step="0.1" value="1" style="width:100%; margin-top:6px;">
+          </div>
+        </div>
+
+        <!-- Preview area (now a static image placeholder) -->
+        <div id="previewWrapper" style="width:220px; height:160px; background:#02111a; border-radius:8px; padding:6px; box-shadow:inset 0 0 30px rgba(0,0,0,0.6); display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <div style="font-size:12px; color:#9fd5ff; margin-bottom:6px; text-align:center">Previsualización</div>
+          <!-- Place an image file in assets/models/previews/ named to match the model (e.g. ship1.png) -->
+          <img id="previewImage" src="assets/models/previews/placeholder.png" alt="Preview" style="max-width:100%; max-height:100%; border-radius:4px; object-fit:contain; background:#02111a;" />
+        </div>
+      </div>
+
+      <!-- Ajustes avanzados eliminados: el tamaño/posición ahora se configuran desde
+           `src/ship/shipConfig.js`. -->
+
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
+        <button id="startGameBtn" style="padding:8px 12px; background:#2a9d8f; border:none; color:#fff; border-radius:6px; cursor:pointer">Comenzar</button>
+      </div>
+      <div id="startInfo" style="margin-top:8px; color:#cfe6ff; font-size:13px; display:none">Previsualizando...</div>
+    </div>
+  </div>
+
   <!-- Cargamos THREE.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Import map para resolver importaciones tipo 'three' en módulos ESM (necesario para loaders) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+      "three/": "https://cdn.jsdelivr.net/npm/three@0.128.0/"
+    }
+  }
+  </script>
   <!-- Cargamos el script del juego -->
   <script type="module" src="main_juego.js"></script>
 </body>
