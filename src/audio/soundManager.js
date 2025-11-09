@@ -13,7 +13,8 @@ const DEFAULT_VOLUMES = {
   cuentaRegresiva: 0.9,
   victoria: 0.8,
   derrota: 0.8,
-  choqueexito: 0.9
+  choqueexito: 0.9,
+  curacion: 0.8
 };
 
 class SoundManager {
@@ -86,7 +87,7 @@ class SoundManager {
     });
   }
 
-  // convenience: load the four expected sounds
+  // convenience: load the expected sounds
   async loadAllDefaults() {
     await this.load('movimiento', 'movimiento');
     // Support both 'exposion' (as solicitado) and 'explosion' (si el archivo viene con L)
@@ -97,6 +98,7 @@ class SoundManager {
     await this.load('victoria', 'victoria');
     await this.load('derrota', 'derrota');
     await this.load('choqueexito', 'choqueexito');
+    await this.load('curacion', 'curacion');
   }
 
   // Precalienta el audio para evitar latencia al primer play (llamar tras interacción del usuario)

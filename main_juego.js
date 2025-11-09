@@ -496,6 +496,14 @@ const planetData = [
 		texture: "./textures/neptune.jpg",
 		info: "Neptuno es el planeta más lejano del Sol y tiene los vientos más rápidos del sistema solar. Su color azul intenso proviene del metano en su atmósfera.",
 	},
+	{
+		name: "Plutón",
+		size: 0.4,
+		texture: "./textures/pluton.webp",
+		info: "Plutón, el planeta enano del sistema solar exterior, te otorga una vida extra cuando lo visitas. Su superficie helada guarda secretos del confín del sistema solar.",
+		type: "healing", // Special type for healing planets
+		healAmount: 1
+	},
 ];
 
 const planets = [];
@@ -576,6 +584,37 @@ planetData.forEach((d, idx) => {
 				p.material.emissive.add(new THREE.Color(0x002244));
 				p.material.emissiveIntensity = (p.material.emissiveIntensity || 0) + 0.25;
 			}
+		} else if (name.includes('plutón') || name.includes('pluto')) {
+			// Enhanced red healing aura for Pluto
+			const outlineGeo = new THREE.SphereGeometry(d.size * 1.12, 32, 32);
+			const outlineMat = new THREE.MeshBasicMaterial({ 
+				color: 0xff0000, 
+				transparent: true, 
+				opacity: 0.8,
+				side: THREE.BackSide
+			});
+			const outline = new THREE.Mesh(outlineGeo, outlineMat);
+			outline.name = 'healingOutline';
+			p.add(outline);
+			
+			// Add secondary red aura layer
+			const auraGeo = new THREE.SphereGeometry(d.size * 1.25, 32, 32);
+			const auraMat = new THREE.MeshBasicMaterial({ 
+				color: 0xff3333, 
+				transparent: true, 
+				opacity: 0.3,
+				side: THREE.BackSide
+			});
+			const aura = new THREE.Mesh(auraGeo, auraMat);
+			aura.name = 'healingAura';
+			p.add(aura);
+			
+			// Add stronger pulsing red glow to planet surface
+			if (p.material && (p.material.isMeshStandardMaterial || p.material.isMeshPhysicalMaterial)) {
+				p.material.emissive = p.material.emissive || new THREE.Color(0x000000);
+				p.material.emissive.add(new THREE.Color(0x660000));
+				p.material.emissiveIntensity = (p.material.emissiveIntensity || 0) + 0.35;
+			}
 		}
 	} catch (e) {}
 
@@ -585,7 +624,7 @@ planetData.forEach((d, idx) => {
 });
 
 // ====== Objetivos / puntuación / vidas ======
-const TOTAL_TARGETS = planetData.length || 8;
+const TOTAL_TARGETS = planetData.filter(p => p.type !== 'healing').length || 8;
 let currentTargetIndex = 0; // index in planets[] of the current target
 let score = 0;
 let lives = 3; // three hearts
@@ -612,8 +651,9 @@ function setupGameUI() {
 	livesEls = Array.from(document.querySelectorAll('#livesWrap .life'));
 	// mark all planets as not done at start
 	for (const p of planets) { p.userData.done = false; p.userData.isTarget = false; }
-	// create a randomized target order and pick the first available
-	targetOrder = shuffleArray(planets.map((_, i) => i));
+	// create a randomized target order excluding healing planets
+	const targetPlanetIndices = planets.map((_, i) => i).filter(i => planets[i].userData.type !== 'healing');
+	targetOrder = shuffleArray(targetPlanetIndices);
 	currentTargetPos = 0;
 	currentTargetIndex = (targetOrder && targetOrder.length) ? targetOrder[currentTargetPos] : -1;
 	markTarget(currentTargetIndex);
@@ -624,8 +664,8 @@ function setupGameUI() {
 function renderTargetList() {
 	if (!targetListEl) return;
 	targetListEl.innerHTML = '';
-	// Render according to randomized targetOrder so the sidebar shows the sequence
-	const order = (targetOrder && targetOrder.length) ? targetOrder : planets.map((_,i)=>i);
+	// Render according to randomized targetOrder so the sidebar shows the sequence (excluding healing planets)
+	const order = (targetOrder && targetOrder.length) ? targetOrder : planets.map((_,i)=>i).filter(i => planets[i].userData.type !== 'healing');
 	order.forEach((planetIdx, displayPos) => {
 		const p = planets[planetIdx];
 		const li = document.createElement('li');
@@ -1074,10 +1114,101 @@ function checkCollisions() {
 	}
 }
 
+function handleHealingCollision(planet) {
+	// Healing collision with Pluto
+	const healAmount = planet.userData.healAmount || 1;
+	const oldLives = lives;
+	lives = Math.min(3, lives + healAmount); // Cap at 3 lives
+	
+	// Always play healing sound for any Pluto collision
+	try { soundManager.play('curacion'); } catch(e) {}
+	
+	// Only show healing message if we actually gained a life
+	if (lives > oldLives) {
+		// PAUSE GAME and show healing message
+		gamePaused = true;
+		// stop ambient & movement sounds during the pause
+		try { soundManager.stop('sonidoNave'); } catch(e) {}
+		try { soundManager.stop('movimiento'); movementPlaying = false; } catch(e) {}
+		
+		// Show healing message
+		try {
+			infoBox.innerHTML = `<strong>¡PLUTÓN TE CURÓ!</strong><br>+1 Vida (${lives}/3)`;
+			infoBox.style.display = 'block';
+			infoBox.style.background = 'rgba(0, 100, 0, 0.85)'; // Green background for healing
+		} catch(e) {}
+		
+		// Update HUD immediately
+		try { updateHUD(); } catch(e) {}
+		
+		// Reset visible planets to avoid accidental re-collisions
+		try {
+			for (const p of planets) {
+				if (p.position.z > -20) resetPlanet(p);
+			}
+		} catch(e) {}
+		
+		// After 2 seconds: hide message, resume game
+		setTimeout(() => {
+			try { 
+				infoBox.style.display = 'none'; 
+				infoBox.style.background = 'rgba(0, 0, 0, 0.85)'; // Reset to original background
+			} catch(e) {}
+			
+			gamePaused = false; // resume
+			try { soundManager.loop('sonidoNave', true); soundManager.play('sonidoNave'); } catch(e) {}
+			
+			// Reset cooldown AFTER the pause completes
+			collisionCooldown = false;
+		}, 2000);
+		
+	} else {
+		// Already at max lives, pause game and show message (but healing sound already played above)
+		// PAUSE GAME and show "already full" message
+		gamePaused = true;
+		// stop ambient & movement sounds during the pause
+		try { soundManager.stop('sonidoNave'); } catch(e) {}
+		try { soundManager.stop('movimiento'); movementPlaying = false; } catch(e) {}
+		
+		try {
+			infoBox.innerHTML = `<strong>PLUTÓN</strong><br>Ya tienes máximas vidas (3/3)`;
+			infoBox.style.display = 'block';
+			infoBox.style.background = 'rgba(100, 100, 0, 0.85)'; // Yellow background for "already full"
+		} catch(e) {}
+		
+		// Reset visible planets
+		try {
+			for (const p of planets) {
+				if (p.position.z > -20) resetPlanet(p);
+			}
+		} catch(e) {}
+		
+		// Shorter pause for "already full" message (2 seconds like healing)
+		setTimeout(() => {
+			try { 
+				infoBox.style.display = 'none';
+				infoBox.style.background = 'rgba(0, 0, 0, 0.85)'; // Reset to original background
+			} catch(e) {}
+			
+			gamePaused = false; // resume
+			try { soundManager.loop('sonidoNave', true); soundManager.play('sonidoNave'); } catch(e) {}
+			
+			// Reset cooldown and continue game
+			collisionCooldown = false;
+		}, 2000); // Changed to 2 seconds to match healing pause
+	}
+}
+
 function handleCollision(planet) {
 	// basic cooldown to avoid multiple triggers
 	collisionCooldown = true;
 	// NOTE: Don't reset cooldown here - let it be reset after the pause completes
+
+	// Check if this is a healing planet (Pluto)
+	if (planet.userData && planet.userData.type === 'healing') {
+		handleHealingCollision(planet);
+		return;
+	}
 
 	// determine index of planet
 	const idx = planets.indexOf(planet);
@@ -1200,10 +1331,26 @@ function animate(time) {
 		updateRocket(dt);
 		planets.forEach((p) => {
 			p.position.z += 0.5 * (globalGameSpeed || 1) * dt * 60;
-			if (p.position.z > 5) resetPlanet(p);
-				// use per-planet rotation speed when available
-				const speed = (p.userData && p.userData.rotationSpeed) ? p.userData.rotationSpeed : 0.01;
-				p.rotation.y += speed * (globalGameSpeed || 1) * dt * 60;
+			if (p.position.z > 5) {
+				// Slightly reduce Pluto spawn frequency (70% chance instead of 50%)
+				if (p.userData && p.userData.type === 'healing') {
+					// Spawn Pluto 70% of the time (increased from 50%)
+					if (Math.random() < 0.7) {
+						resetPlanet(p);
+						p.visible = true;
+					} else {
+						// Keep Pluto hidden and far away
+						p.position.z = -Math.random() * 50 - 100;
+						p.visible = false;
+					}
+				} else {
+					resetPlanet(p);
+					p.visible = true;
+				}
+			}
+			// use per-planet rotation speed when available
+			const speed = (p.userData && p.userData.rotationSpeed) ? p.userData.rotationSpeed : 0.01;
+			p.rotation.y += speed * (globalGameSpeed || 1) * dt * 60;
 		});
 		// no flame/tipLight - the loaded ship model will show its own effects if any
 	}
@@ -1219,8 +1366,28 @@ function animate(time) {
 			} catch(e) {}
 			// ensure particle emitter exists and is visible
 			try { ensureParticleEmitter(p); if (p.userData && p.userData.particleSystem) p.userData.particleSystem.visible = true; } catch(e) {}
+		} else if (p && p.userData && p.userData.type === 'healing') {
+			// Enhanced pulsing for healing planets (Pluto) with dual aura layers
+			try {
+				const outline = p.getObjectByName('healingOutline');
+				if (outline && outline.material) {
+					outline.material.opacity = 0.6 + 0.4 * Math.sin(tNow/250 + i);
+				}
+				
+				// Pulse the secondary aura layer
+				const aura = p.getObjectByName('healingAura');
+				if (aura && aura.material) {
+					aura.material.opacity = 0.2 + 0.25 * Math.sin(tNow/180 + i * 0.5);
+				}
+				
+				// Stronger red pulse on the planet itself
+				if (p.material && p.material.emissive) {
+					const baseIntensity = 0.35;
+					p.material.emissiveIntensity = baseIntensity + 0.25 * Math.sin(tNow/320 + i);
+				}
+			} catch(e) {}
 		} else {
-			try { if (p && p.material && p.material.emissive) p.material.emissiveIntensity = 0; } catch(e) {}
+			try { if (p && p.material && p.material.emissive && p.userData && p.userData.type !== 'healing') p.material.emissiveIntensity = 0; } catch(e) {}
 			try { if (p && p.userData && p.userData.particleSystem) p.userData.particleSystem.visible = false; } catch(e) {}
 		}
 	}
