@@ -773,20 +773,24 @@ function resetPlanet(p) {
 	p.position.z = -Math.random() * 100 - 20;
 }
 
-// ====== CARTEL SUPERIOR ======
+// ====== CARTEL CENTRADO ======
 const infoBox = document.createElement("div");
 infoBox.style.position = "absolute";
-infoBox.style.top = "20px";
+infoBox.style.top = "50%";
 infoBox.style.left = "50%";
-infoBox.style.transform = "translateX(-50%)";
-infoBox.style.background = "rgba(0, 0, 0, 0.75)";
+infoBox.style.transform = "translate(-50%, -50%)";
+infoBox.style.background = "rgba(0, 0, 0, 0.85)";
 infoBox.style.color = "#fff";
-infoBox.style.padding = "10px 15px";
-infoBox.style.borderRadius = "8px";
+infoBox.style.padding = "25px 35px";
+infoBox.style.borderRadius = "15px";
 infoBox.style.fontFamily = "Arial, sans-serif";
-infoBox.style.fontSize = "16px";
+infoBox.style.fontSize = "28px";
+infoBox.style.fontWeight = "bold";
+infoBox.style.textAlign = "center";
 infoBox.style.display = "none";
 infoBox.style.zIndex = "10";
+infoBox.style.border = "3px solid rgba(255, 255, 255, 0.3)";
+infoBox.style.boxShadow = "0 0 20px rgba(0, 0, 0, 0.7)";
 document.body.appendChild(infoBox);
 
 // Reset game state to initial values
@@ -998,7 +1002,7 @@ function handleCollision(planet) {
 			// check victory
 			if (score >= TOTAL_TARGETS) {
 				try { soundManager.play('victoria'); } catch(e) {}
-				showEndMessage('¡VICTORY! Completaste los 8 planetas.');
+				showEndMessage('FELICIDADES! Completaste los 8 planetas.');
 			} else {
 				gamePaused = false; // resume
 				try { soundManager.loop('sonidoNave', true); soundManager.play('sonidoNave'); } catch(e) {}
@@ -1047,7 +1051,7 @@ function handleCollision(planet) {
 			// check defeat
 			if (lives <= 0) {
 				try { soundManager.play('derrota'); } catch(e) {}
-				showEndMessage('GAME OVER – Recargá la página para volver a intentar');
+				showEndMessage('GAME OVER! Recargá la página para volver a intentar');
 			} else {
 				gamePaused = false; // resume
 				try { soundManager.loop('sonidoNave', true); soundManager.play('sonidoNave'); } catch(e) {}
