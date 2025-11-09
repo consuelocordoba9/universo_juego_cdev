@@ -36,13 +36,55 @@ const starsMat = new THREE.MeshBasicMaterial({ color: 0x001122, side: THREE.Back
 const stars = new THREE.Mesh(starsGeo, starsMat);
 scene.add(stars);
 
-// Axes helper (will be attached to the modelGroup so its center matches the collision point)
-const axes = new THREE.AxesHelper(1.5);
+// Axes helper sincronizado: se recreará después de rotar el grupo para coincidir visualmente
+let axes = new THREE.AxesHelper(1.5);
 axes.name = 'modelAxes';
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0.5, 0);
 controls.update();
+
+// === Configuración editable de ejes (solo VISOR DE PRUEBAS) ===
+// Ajusta estos ángulos (en radianes) para cambiar la orientación de los ejes.
+// La nave girará junto con los ejes porque rotamos el grupo contenedor (modelGroup).
+// Ejemplos útiles:
+//  - { x: 0, y: 0, z: Math.PI/2 }   -> "acostada" 90° en Z
+//  - { x: 0, y: 0, z: 0 }           -> sin rotación extra
+//  - { x: -Math.PI/2, y: 0, z: 0 }  -> Z del modelo apuntando hacia abajo
+const VIEWER_AXES_ROT = { x: -Math.PI/2, y: 0, z: Math.PI/2 };
+// Ignorar preset.position en el VISOR para mantener la nave centrada
+const VIEWER_IGNORE_PRESET_POSITION = true;
+
+// Rotaciones específicas por nave (EDITA AQUÍ)
+// Clave: nombre del archivo .glb
+// Valores: ángulos en radianes a sumar a esa nave después de cargarla
+// Ejemplo: para dar vuelta la nave 2 sobre Z (180°): z: Math.PI
+const PER_SHIP_ROT = {
+  // Nave 1: mantener "dar vuelta" (roll Z=180°) y mirar en dirección contraria (Y=180°)
+  // Si solo quieres invertir la dirección, cambia y: Math.PI y deja z: 0
+  // Si solo quieres "dar vuelta" sin cambiar dirección, deja y: 0 y z: Math.PI
+  'ship1.glb': { x: 0, y: Math.PI, z: Math.PI },
+  // Nave 2: "dar vuelta" por roll Z (puedes añadir y: Math.PI si también quieres invertir su dirección)
+  'ship2.glb': { x: 0, y: 0, z: Math.PI }
+};
+
+// === HITBOX/COLLIDER (EDITA AQUÍ) ===
+// Usa el mismo radio de hitbox para TODAS las naves en el VISOR.
+// Cambia VIEWER_HITBOX_RADIUS para ajustar el tamaño manualmente.
+// Si prefieres usar el radio definido por cada preset, pon VIEWER_HITBOX_FROM_PRESET = true.
+const VIEWER_HITBOX_FROM_PRESET = false;  // false = usar el valor manual de abajo
+const VIEWER_HITBOX_RADIUS = 0.45;        // radio manual (mismo para todas las naves)
+const VIEWER_HITBOX_SEGMENTS = 12;        // detalle del wireframe (puedes subirlo si lo quieres más suave)
+
+// Posiciones específicas por nave (EDITA AQUÍ)
+// Se aplican después de cualquier centrado/rotación. Útil para corregir ligeros desvíos.
+// x: izquierda(-)/derecha(+), y: abajo(-)/arriba(+), z: atrás(-)/adelante(+)
+// Ejemplo: ship3 corrida a la derecha -> { x: -0.15, y: 0, z: 0 }
+const PER_SHIP_OFFSET = {
+  'ship1.glb': { x: 0, y: 0, z: 0 },
+  'ship2.glb': { x: 0, y: 0, z: -1.5 },
+  'ship3.glb': { x: 0, y: 0.50, z: 0 }
+};
 
 let currentModel = null;
 let currentAutoRotate = false;
@@ -103,18 +145,57 @@ async function loadModel(url) {
     const preset = getPresetForUrl(url);
     // apply scale/position/rotation using helpers so behaviour matches main_juego
     if (preset && preset.scale) setScaleOnParent(modelGroup, preset.scale);
-    try { setPositionOnParent(modelGroup, ...(preset.position || [0, 0.2, 0])); } catch(e) {}
+    // En el visor, podemos ignorar el offset de posición del preset para que siempre
+    // quede centrada y visible. Cambia VIEWER_IGNORE_PRESET_POSITION para alternar.
+    if (!VIEWER_IGNORE_PRESET_POSITION) {
+      try { setPositionOnParent(modelGroup, ...(preset.position || [0, 0.2, 0])); } catch(e) {}
+    }
     try { setRotationOnParent(modelGroup, ...(preset.rotation || [0,0,0])); } catch(e) {}
+    // Rotar el grupo contenedor para que los ejes y la nave coincidan con tu configuración
+    try { modelGroup.rotation.set(VIEWER_AXES_ROT.x, VIEWER_AXES_ROT.y, VIEWER_AXES_ROT.z); } catch (e) {}
+    // Re-crear ejes para que no queden con orientación antigua (opcional; puedes eliminar si no lo necesitas)
+    try {
+      const oldAxes = modelGroup.getObjectByName('modelAxes');
+      if (oldAxes) modelGroup.remove(oldAxes);
+      axes = new THREE.AxesHelper(1.5);
+      axes.name = 'modelAxes';
+      modelGroup.add(axes);
+    } catch (e) {}
   currentAutoRotate = !!preset.autoRotate;
-  // Ensure preview shows ship standing upright (do not apply main game's parent tilt here)
-  modelGroup.rotation.x = 0;
+  // Nota: no sobreescribimos más la rotación; usa VIEWER_AXES_ROT arriba para cambiar orientación
   // expose reference to loaded model for auto-rotate handling
   currentModel = modelGroup.getObjectByName('loadedShip');
-    // update viewer collider radius to match preset
+    // Si se ignora la posición del preset, centrar explícitamente el modelo
     try {
-      const r = preset.colliderRadius || 0.45;
+      if (VIEWER_IGNORE_PRESET_POSITION && currentModel) {
+        currentModel.position.set(0, 0, 0);
+      }
+    } catch (e) {}
+    // Aplicar rotación específica por nave definida en PER_SHIP_ROT
+    try {
+      const file = (url.split('/').pop() || '').toLowerCase();
+      const off = PER_SHIP_ROT[file];
+      if (currentModel && off) {
+        currentModel.rotation.x += off.x || 0;
+        currentModel.rotation.y += off.y || 0;
+        currentModel.rotation.z += off.z || 0;
+      }
+    } catch (e) {}
+    // Aplicar offset por nave
+    try {
+      const file2 = (url.split('/').pop() || '').toLowerCase();
+      const ofs = PER_SHIP_OFFSET[file2];
+      if (currentModel && ofs) {
+        currentModel.position.x += ofs.x || 0;
+        currentModel.position.y += ofs.y || 0;
+        currentModel.position.z += ofs.z || 0;
+      }
+    } catch (e) {}
+    // Actualizar el hitbox con un radio unificado o el del preset, según configuración
+    try {
+      const r = VIEWER_HITBOX_FROM_PRESET ? (preset.colliderRadius || VIEWER_HITBOX_RADIUS) : VIEWER_HITBOX_RADIUS;
       viewerCollider.geometry.dispose();
-      viewerCollider.geometry = new THREE.SphereGeometry(r, 12, 12);
+      viewerCollider.geometry = new THREE.SphereGeometry(r, VIEWER_HITBOX_SEGMENTS, VIEWER_HITBOX_SEGMENTS);
     } catch (e) {}
     // Keep the viewer's original behaviour: fixed initial camera and visible axes/collider.
     // The menu preview (main_juego) is the one that was adjusted to ensure the ship is visible there.

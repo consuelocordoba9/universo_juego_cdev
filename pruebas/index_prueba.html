@@ -6,9 +6,21 @@
   <title>Index Prueba - Visor de Modelos</title>
   <style>
     body { margin: 0; font-family: Arial, sans-serif; background: #0a0a12; color: #ddd; }
-    #ui { position: absolute; z-index: 10; left: 12px; top: 12px; background: rgba(142, 36, 156, 0.45); padding: 10px; border-radius: 6px; }
+    /* Panel superior izquierdo: espejo de estilo del HUD/menús del juego */
+    #ui {
+      position: absolute; z-index: 10; left: 12px; top: 12px;
+      background: linear-gradient(180deg, rgba(12,28,56,0.95), rgba(6,18,38,0.95));
+      padding: 14px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 8px 26px rgba(0,0,0,0.45);
+      backdrop-filter: blur(4px);
+      color: #e9f3ff;
+      min-width: 240px;
+    }
+    #ui label { color: #cfe6ff; font-size: 13px; }
+    #ui select { width: 100%; margin-top: 6px; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background:#0a1528; color:#fff; outline:none; }
+    #ui .row { margin-top: 10px; }
     #canvasContainer { width: 100vw; height: 100vh; }
-    label, select { color: #000000; }
     #info { margin-top: 8px; font-size: 13px; color: #cfd8ff; }
   </style>
 </head>
@@ -24,22 +36,24 @@
   </script>
 
   <div id="ui">
-    <label for="modelSelect">Elegir modelo de nave:</label>
-    <select id="modelSelect">
+    <div class="row">
+      <label for="modelSelect">Elegir modelo de nave</label>
+      <select id="modelSelect">
       <option value="../assets/models/ships/ship1.glb">Ship 1</option>
       <option value="../assets/models/ships/ship2.glb">Ship 2</option>
       <option value="../assets/models/ships/ship3.glb">Ship 3</option>
-    </select>
-    <div id="info">Listo</div>
-    <div style="margin-top:8px;">
+      </select>
+    </div>
+    <div id="info" class="row">Listo</div>
+    <div class="row">
       <label style="font-size:13px"><input type="checkbox" id="axesToggle" checked> Mostrar ejes</label>
     </div>
-    <div style="margin-top:6px;">
+    <div class="row">
       <label style="font-size:13px"><input type="checkbox" id="colliderToggle" checked> Mostrar esfera de colisiones</label>
     </div>
-    <div style="margin-top:8px;">
-      <label for="planetSelect" style="font-size:13px">Elegir planeta para previsualizar:</label>
-      <select id="planetSelect" style="display:block; margin-top:6px; padding:6px; width:160px;">
+    <div class="row">
+      <label for="planetSelect" style="font-size:13px">Elegir planeta para previsualizar</label>
+      <select id="planetSelect" style="display:block; margin-top:6px; padding:6px 8px; width:100%; border-radius:8px; border:1px solid rgba(255,255,255,0.12); background:#0a1528; color:#fff;">
         <option value="none">-- Ninguno --</option>
         <option value="mercury">Mercurio</option>
         <option value="venus">Venus</option>
@@ -53,8 +67,27 @@
     </div>
   </div>
 
+  <!-- botón flotante esquina superior derecha -->
+  <button id="openTestEncy" style="position:fixed; top:14px; right:14px; z-index:100; padding:8px 12px; background:#2a9d8f; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:14px; box-shadow:0 6px 16px rgba(0,0,0,0.25)">Enciclopedia</button>
+
   <div id="canvasContainer"></div>
 
-  <script type="module" src="viewer_prueba.js"></script>
+  <!-- Overlay Enciclopedia para pruebas -->
+  <div id="encyOverlay" style="display:none; position:fixed; inset:0; z-index:130; align-items:center; justify-content:center;"></div>
+
+  <script type="module">
+    import './viewer_prueba.js';
+    import { mountEncyclopedia, showEncyclopedia, hideEncyclopedia } from '../src/encyclopedia/encyclopediaUI.js';
+    // Montar enciclopedia al cargar pruebas
+    mountEncyclopedia();
+    const btn = document.getElementById('openTestEncy');
+    btn?.addEventListener('click', () => {
+      showEncyclopedia();
+    });
+    // Cerrar con ESC
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') hideEncyclopedia();
+    });
+  </script>
 </body>
 </html>
