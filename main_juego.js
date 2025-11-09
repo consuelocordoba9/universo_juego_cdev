@@ -2,7 +2,6 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.m
 import { loadInto, setScaleOnParent, setPositionOnParent, disposeCurrent, setRotationOnParent } from './src/ship/shipManager.js';
 import { getPresetForUrl } from './src/ship/shipConfig.js';
 import soundManager from './src/audio/soundManager.js';
-import { planetData } from './src/encyclopedia/planetData.js';
 // ====== ESCENA, CÁMARA Y RENDER ======
 const scene = new THREE.Scene();
 
@@ -124,7 +123,6 @@ function setupStartMenu() {
 	const select = document.getElementById('shipSelectStart');
 	const startBtn = document.getElementById('startGameBtn');
 	const cancelBtn = document.getElementById('cancelStartBtn');
-	const openEncyBtn = document.getElementById('openEncyBtn');
 	const startInfo = document.getElementById('startInfo');
 	const backToMenuBtn = document.getElementById('backToMenuBtn');
 
@@ -164,8 +162,6 @@ function setupStartMenu() {
 			try { soundManager.loop('fondoMenu', true); soundManager.play('fondoMenu'); } catch (e) {}
 		};
 	}
-
-    // (Enciclopedia se movió a pruebas/, no se muestra aquí)
 
 		// --- Preview image (static) ---
 		const previewImage = document.getElementById('previewImage');
@@ -326,6 +322,56 @@ function clearRotatingObjects() {
 }
 
 // ====== PLANETAS ======
+const planetData = [
+	{
+		name: "Mercurio",
+		size: 0.5,
+		texture: "./textures/mercury.jpg",
+		info: "Mercurio es el planeta más cercano al Sol y el más pequeño del sistema solar. Su superficie está cubierta de cráteres y sus temperaturas oscilan entre extremos de calor y frío.",
+	},
+	{
+		name: "Venus",
+		size: 0.8,
+		texture: "./textures/venus.jpg",
+		info: "Venus es el planeta más caliente del sistema solar debido a su densa atmósfera de dióxido de carbono. A veces se le llama el 'gemelo de la Tierra' por su tamaño similar.",
+	},
+	{
+		name: "Tierra",
+		size: 0.9,
+		texture: "./textures/earth.jpg",
+		info: "La Tierra es nuestro hogar, el único planeta conocido que alberga vida. Tiene océanos, atmósfera rica en oxígeno y una temperatura perfecta para los seres vivos.",
+	},
+	{
+		name: "Marte",
+		size: 0.7,
+		texture: "./textures/mars.jpg",
+		info: "Marte, el planeta rojo, tiene una atmósfera delgada y polvo de óxido de hierro en su superficie. Es el objetivo principal de misiones de exploración espacial.",
+	},
+	{
+		name: "Júpiter",
+		size: 1.2,
+		texture: "./textures/jupiter.jpg",
+		info: "Júpiter es el planeta más grande del sistema solar y un gigante gaseoso. Su Gran Mancha Roja es una tormenta que ha durado siglos, y tiene más de 79 lunas conocidas.",
+	},
+	{
+		name: "Saturno",
+		size: 1.0,
+		texture: "./textures/saturn.jpg",
+		info: "Saturno es famoso por sus impresionantes anillos compuestos de hielo y roca. Es el segundo planeta más grande y también un gigante gaseoso.",
+	},
+	{
+		name: "Urano",
+		size: 0.8,
+		texture: "./textures/uranus.jpg",
+		info: "Urano es único porque gira de lado, probablemente debido a una antigua colisión. Es un gigante de hielo con una atmósfera fría y ventosa.",
+	},
+	{
+		name: "Neptuno",
+		size: 0.7,
+		texture: "./textures/neptune.jpg",
+		info: "Neptuno es el planeta más lejano del Sol y tiene los vientos más rápidos del sistema solar. Su color azul intenso proviene del metano en su atmósfera.",
+	},
+];
 
 const planets = [];
 // helper: create a simple atmosphere (slightly larger transparent sphere)
@@ -334,7 +380,7 @@ function createAtmosphere(radius, color, opacity) {
 	const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: opacity, side: THREE.DoubleSide });
 	return new THREE.Mesh(geo, mat);
 }
-s
+
 // labels removed: planet name sprites disabled per user request
 
 planetData.forEach((d, idx) => {
