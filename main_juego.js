@@ -117,6 +117,105 @@ function setPlayerColliderEnabled(enabled) {
 }
 window.setPlayerColliderEnabled = setPlayerColliderEnabled;
 
+// ====== SISTEMA DE DESBLOQUEO ======
+function isShipUnlocked(shipValue) {
+	// Ship2 (Ovni) requires game completion IN CURRENT SESSION (resets on page reload)
+	if (shipValue.includes('ship2.glb')) {
+		return sessionStorage.getItem('universo_juego_completed') === 'true';
+	}
+	return true; // Other ships are always unlocked
+}
+
+function unlockShip2() {
+	sessionStorage.setItem('universo_juego_completed', 'true');
+	// Refresh ship selection to show unlocked state
+	try { setupShipSelection(); } catch(e) {}
+}
+
+function setupShipSelection() {
+	const select = document.getElementById('shipSelectStart');
+	const startBtn = document.getElementById('startGameBtn');
+	if (!select) return;
+	
+	// Get all options
+	const options = select.querySelectorAll('option');
+	options.forEach(option => {
+		const value = option.value;
+		const isUnlocked = isShipUnlocked(value);
+		
+		if (!isUnlocked) {
+			// Don't disable the option - allow selection for preview
+			option.textContent = option.textContent.replace(' 🔒 (Completa el juego)', '') + ' 🔒 (Completa el juego)';
+			option.style.color = '#ff6666';
+		} else if (value.includes('ship2.glb') && option.textContent.includes('🔒')) {
+			// Remove lock if previously locked but now unlocked
+			option.textContent = 'Ovni';
+			option.style.color = '';
+		}
+	});
+	
+	// Update start button state based on current selection
+	updateStartButtonState();
+}
+
+function updateStartButtonState() {
+	const select = document.getElementById('shipSelectStart');
+	const startBtn = document.getElementById('startGameBtn');
+	if (!select || !startBtn) return;
+	
+	const isUnlocked = isShipUnlocked(select.value);
+	if (!isUnlocked) {
+		startBtn.disabled = true;
+		startBtn.style.opacity = '0.5';
+		startBtn.style.cursor = 'not-allowed';
+		startBtn.textContent = '🔒 Completa el juego para desbloquear';
+	} else {
+		startBtn.disabled = false;
+		startBtn.style.opacity = '1';
+		startBtn.style.cursor = 'pointer';
+		startBtn.textContent = 'Comenzar Juego';
+	}
+}
+
+function createLockOverlay() {
+	const previewImage = document.getElementById('previewImage');
+	if (!previewImage) return;
+	
+	// Remove existing overlay if present
+	const existingOverlay = document.getElementById('lockOverlay');
+	if (existingOverlay) existingOverlay.remove();
+	
+	// Create lock overlay
+	const overlay = document.createElement('div');
+	overlay.id = 'lockOverlay';
+	overlay.style.position = 'absolute';
+	overlay.style.top = '0';
+	overlay.style.left = '0';
+	overlay.style.width = '100%';
+	overlay.style.height = '100%';
+	overlay.style.background = 'rgba(0, 0, 0, 0.7)';
+	overlay.style.display = 'flex';
+	overlay.style.alignItems = 'center';
+	overlay.style.justifyContent = 'center';
+	overlay.style.fontSize = '48px';
+	overlay.style.color = '#fff';
+	overlay.style.zIndex = '10';
+	overlay.style.borderRadius = '8px';
+	overlay.innerHTML = '🔒';
+	
+	// Make sure preview container has relative positioning
+	const previewContainer = previewImage.parentElement;
+	if (previewContainer) {
+		previewContainer.style.position = 'relative';
+		previewContainer.appendChild(overlay);
+	}
+}
+
+function removeLockOverlay() {
+	const overlay = document.getElementById('lockOverlay');
+	if (overlay) overlay.remove();
+}
+
 // === Pantalla de inicio (menu) ===
 function setupStartMenu() {
 	const menu = document.getElementById('startMenu');
@@ -156,6 +255,8 @@ function setupStartMenu() {
 			menu.style.display = 'flex';
 			try { gamePaused = true; } catch (e) {}
 			backToMenuBtn.style.display = 'none';
+			// refresh ship selection in case ship2 was just unlocked
+			try { setupShipSelection(); } catch(e) {}
 			// ensure in-game sounds are stopped when showing menu via API
 			try { soundManager.stop('sonidoNave'); } catch(e) {}
 			try { soundManager.stop('movimiento'); movementPlaying = false; } catch(e) {}
@@ -227,6 +328,18 @@ function setupStartMenu() {
 				} catch (e) {
 					console.warn('No se pudo establecer la imagen de previsualización:', e);
 				}
+				
+				// Handle lock overlay for locked ships
+				const isUnlocked = isShipUnlocked(url);
+				if (!isUnlocked) {
+					createLockOverlay();
+				} else {
+					removeLockOverlay();
+				}
+				
+				// Update start button state
+				updateStartButtonState();
+				
 				if (startInfo) { startInfo.textContent = 'Previsualización lista'; setTimeout(() => startInfo.style.display = 'none', 800); }
 			} catch (err) {
 				console.error('Error previsualizando nave:', err);
@@ -237,17 +350,26 @@ function setupStartMenu() {
 		// Preview when selection changes. Keep the menu paused while previewing.
 		select.addEventListener('change', (e) => {
 			preview(e.target.value);
+			updateStartButtonState();
 			try { if (menu) { menu.style.display = 'flex'; gamePaused = true; } } catch (er) {}
 		});
 
+		// Setup ship selection lock/unlock states
+		setupShipSelection();
+		
 		// initial preview for selected ship (apply preset) and ensure menu stays open/paused
 		preview(select.value);
 		try { if (menu) { menu.style.display = 'flex'; gamePaused = true; } } catch (er) {}
 
 	startBtn.addEventListener('click', async () => {
+		// Button should be disabled for locked ships, but double-check
+		const url = select.value;
+		if (!isShipUnlocked(url)) {
+			return; // Should not happen since button is disabled
+		}
+		
 		// reset the game (so confirming restarts everything)
 		try { resetGame(); } catch (e) { console.warn('resetGame error', e); }
-		const url = select.value;
 		const preset = getPresetForUrl(url);
 		try {
 			// ensure no previous ship remains
@@ -305,8 +427,11 @@ window.addEventListener('DOMContentLoaded', setupStartMenu);
 window.addEventListener('DOMContentLoaded', () => {
 	try { setupGameUI(); } catch(e) { console.warn('setupGameUI failed', e); }
 });
-// load sounds and start menu background music when DOM ready
+// Clear unlock status and load sounds when DOM ready
 window.addEventListener('DOMContentLoaded', async () => {
+	// Ensure UFO is locked on page load/reload
+	try { sessionStorage.removeItem('universo_juego_completed'); } catch(e) {}
+	
 	try {
 		await soundManager.loadAllDefaults();
 		soundManager.loop('fondoMenu', true);
@@ -1002,6 +1127,8 @@ function handleCollision(planet) {
 			// check victory
 			if (score >= TOTAL_TARGETS) {
 				try { soundManager.play('victoria'); } catch(e) {}
+				// Unlock ship2 (Ovni) on game completion
+				try { unlockShip2(); } catch(e) {}
 				showEndMessage('FELICIDADES! Completaste los 8 planetas.');
 			} else {
 				gamePaused = false; // resume
