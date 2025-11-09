@@ -1,6 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js";
 import { loadInto, setScaleOnParent, setPositionOnParent, disposeCurrent, setRotationOnParent } from './src/ship/shipManager.js';
 import { getPresetForUrl } from './src/ship/shipConfig.js';
+import soundManager from './src/audio/soundManager.js';
 // ====== ESCENA, CÁMARA Y RENDER ======
 const scene = new THREE.Scene();
 
@@ -131,35 +132,34 @@ function setupStartMenu() {
 	if (backToMenuBtn) {
 		backToMenuBtn.style.display = 'none';
 		backToMenuBtn.addEventListener('click', () => {
-			// If a collision resume timeout is pending, cancel it so the game won't
-			// automatically resume while the menu is shown.
+			// Cancel any pending resume timers and countdowns
 			try {
-				if (collisionTimeoutId !== null) {
-					clearTimeout(collisionTimeoutId);
-					collisionTimeoutId = null;
-				}
-				// also make sure collisionCooldown is cleared so the menu state is stable
+				if (collisionTimeoutId !== null) { clearTimeout(collisionTimeoutId); collisionTimeoutId = null; }
 				collisionCooldown = false;
-				// cancel countdown if running and hide overlay
-				if (countdownTimerId !== null) {
-					clearTimeout(countdownTimerId);
-					countdownTimerId = null;
-					try {
-						const cdo = document.getElementById('countdownOverlay');
-						if (cdo) cdo.style.display = 'none';
-					} catch (ee) {}
-				}
+				if (countdownTimerId !== null) { clearTimeout(countdownTimerId); countdownTimerId = null; }
+				const cdo = document.getElementById('countdownOverlay');
+				if (cdo) cdo.style.display = 'none';
+				// Stop in-game sounds
+				try { soundManager.stop('sonidoNave'); } catch(e) {}
+				try { soundManager.stop('movimiento'); movementPlaying = false; } catch(e) {}
 			} catch (err) {}
+
+			// Show menu and start menu music
 			menu.style.display = 'flex';
-			// pause the game when returning to the menu
+			try { soundManager.loop('fondoMenu', true); soundManager.play('fondoMenu'); } catch(e) {}
 			try { gamePaused = true; } catch (e) {}
 			backToMenuBtn.style.display = 'none';
 		});
+
 		// expose a helper to show the start menu from other code
 		window.showStartMenu = () => {
 			menu.style.display = 'flex';
 			try { gamePaused = true; } catch (e) {}
 			backToMenuBtn.style.display = 'none';
+			// ensure in-game sounds are stopped when showing menu via API
+			try { soundManager.stop('sonidoNave'); } catch(e) {}
+			try { soundManager.stop('movimiento'); movementPlaying = false; } catch(e) {}
+			try { soundManager.loop('fondoMenu', true); soundManager.play('fondoMenu'); } catch (e) {}
 		};
 	}
 
@@ -276,8 +276,18 @@ function setupStartMenu() {
 			console.error('Error cargando nave al comenzar:', err);
 		}
 		menu.style.display = 'none';
-		// start a pre-game 3-second countdown before unpausing
-		try { startPreGameCountdown(3); } catch(e) { gamePaused = false; }
+		// stop menu music and start a pre-game 3-second countdown before unpausing
+		try {
+			soundManager.stop('fondoMenu');
+			// prime countdown and ship ambient to avoid start lag
+			try { soundManager.prime('cuentaRegresiva'); } catch(e) {}
+			try { soundManager.prime('sonidoNave'); } catch(e) {}
+			startPreGameCountdown(3, () => {
+				// start ambient ship sound
+				soundManager.loop('sonidoNave', true);
+				soundManager.play('sonidoNave');
+			});
+		} catch(e) { gamePaused = false; }
 		try { if (backToMenuBtn) backToMenuBtn.style.display = 'block'; } catch(e) {}
 	});
 
@@ -294,6 +304,14 @@ function setupStartMenu() {
 window.addEventListener('DOMContentLoaded', setupStartMenu);
 window.addEventListener('DOMContentLoaded', () => {
 	try { setupGameUI(); } catch(e) { console.warn('setupGameUI failed', e); }
+});
+// load sounds and start menu background music when DOM ready
+window.addEventListener('DOMContentLoaded', async () => {
+	try {
+		await soundManager.loadAllDefaults();
+		soundManager.loop('fondoMenu', true);
+		soundManager.play('fondoMenu');
+	} catch (e) { console.warn('soundManager load failed', e); }
 });
 
 // rotating objects in-game (used when a preset wants autoRotate)
@@ -519,7 +537,7 @@ function updateHUD() {
 }
 
 // ===== Pre-game countdown (3→2→1) =====
-function startPreGameCountdown(seconds = 3) {
+function startPreGameCountdown(seconds = 3, onComplete) {
 	const overlay = document.getElementById('countdownOverlay');
 	const numberEl = document.getElementById('countdownNumber');
 	// if overlay is missing, just start immediately
@@ -536,18 +554,29 @@ function startPreGameCountdown(seconds = 3) {
 	let remaining = Math.max(1, Math.floor(seconds));
 	numberEl.textContent = String(remaining);
 
+	// play first beep immediately for the initial number (3)
+	try { 
+		soundManager._beep({ freq: 880, duration: 0.15, volume: 0.7 });
+	} catch(e) {}
+
 	function tick() {
 		remaining -= 1;
 		if (remaining > 0) {
+			// beep and show next number
+			try { 
+				soundManager._beep({ freq: 880, duration: 0.15, volume: 0.7 });
+			} catch(e) {}
 			numberEl.textContent = String(remaining);
 			countdownTimerId = setTimeout(tick, 1000);
 		} else {
-			// end countdown
+			// final transition
 			overlay.style.display = 'none';
 			countdownTimerId = null;
-			gamePaused = false; // start the game
+			gamePaused = false;
+			try { if (typeof onComplete === 'function') onComplete(); } catch(e) {}
 		}
 	}
+	// start the countdown sequence after 1 second
 	countdownTimerId = setTimeout(tick, 1000);
 }
 
@@ -718,18 +747,16 @@ function showEndMessage(text) {
 		if (endOverlay) endOverlay.style.display = 'flex';
 		// pause gameplay
 		gamePaused = true;
+		// stop in-game ambient when showing end overlay
+		try { soundManager.stop('sonidoNave'); } catch(e) {}
 
 		// restart button: hide overlay, reset game, and show ship selection menu
 		if (restartBtn) {
 			restartBtn.onclick = () => {
 				try { endOverlay.style.display = 'none'; } catch(e){}
 				try { resetGame(); } catch(e) { console.warn('resetGame failed', e); }
-				// show the start menu instead of resuming directly
-				try {
-					const startMenu = document.getElementById('startMenu');
-					if (startMenu) startMenu.style.display = 'flex';
-					gamePaused = true; // keep paused until user selects ship
-				} catch(e) { console.warn('Failed to show start menu', e); }
+				// show the start menu properly with audio
+				try { showStartMenu(); } catch(e) { console.warn('Failed to show start menu', e); }
 			};
 		}
 		// reload button: reload the page
@@ -794,6 +821,10 @@ function resetGame() {
 	// reset collision and pause flags
 	collisionCooldown = false;
 	gamePaused = true;
+	// stop any playing in-game or menu sounds
+	try { soundManager.stop('sonidoNave'); } catch(e) {}
+	try { soundManager.stop('movimiento'); } catch(e) {}
+	try { soundManager.stop('fondoMenu'); } catch(e) {}
 	// cancel any pending collision resume timeout
 	try { if (collisionTimeoutId !== null) { clearTimeout(collisionTimeoutId); collisionTimeoutId = null; } } catch(e) {}
 	// cancel and hide any countdown overlay
@@ -819,6 +850,8 @@ let gamePaused = true; // start paused until player begins from the menu
 let collisionTimeoutId = null;
 // countdown timer id (to cancel if user returns to menu)
 let countdownTimerId = null;
+// movement sound playing flag
+let movementPlaying = false;
 // Global speed multiplier for the whole game (affects movement, planet speed, rotations)
 let globalGameSpeed = 1.0;
 
@@ -845,6 +878,19 @@ function updateRocket(dt) {
 	if (keys["ArrowLeft"]) targetRoll = 0.45;
 	else if (keys["ArrowRight"]) targetRoll = -0.45;
 	else targetRoll = 0;
+
+	// movement sound: play when any arrow key moves the ship
+	const moving = !!(keys["ArrowUp"] || keys["ArrowDown"] || keys["ArrowLeft"] || keys["ArrowRight"]);
+	try {
+		if (moving && !movementPlaying) {
+			soundManager.loop('movimiento', true);
+			soundManager.play('movimiento');
+			movementPlaying = true;
+		} else if (!moving && movementPlaying) {
+			soundManager.stop('movimiento');
+			movementPlaying = false;
+		}
+	} catch (e) {}
 
 	// no particle exhaust: movement-only modifications requested
 }
@@ -912,11 +958,16 @@ function handleCollision(planet) {
 		// correct collision: mark done, pause game, show info overlay for 3 seconds
 		if (planet.userData) planet.userData.done = true;
 		score += 1;
+		// play success collision sound
+		try { soundManager.play('choqueexito'); } catch(e) {}
 		// clear any target flag for this planet
 		if (planet.material && planet.material.emissive) planet.material.emissiveIntensity = 0.0;
 		
 		// PAUSE GAME and show centered info overlay
 		gamePaused = true;
+		// stop ambient & movement sounds during the info pause
+		try { soundManager.stop('sonidoNave'); } catch(e) {}
+		try { soundManager.stop('movimiento'); movementPlaying = false; } catch(e) {}
 		try {
 			const overlay = document.getElementById('collisionInfoOverlay');
 			const nameEl = document.getElementById('collisionPlanetName');
@@ -946,9 +997,11 @@ function handleCollision(planet) {
 			try { updateHUD(); } catch(e) {}
 			// check victory
 			if (score >= TOTAL_TARGETS) {
+				try { soundManager.play('victoria'); } catch(e) {}
 				showEndMessage('¡VICTORY! Completaste los 8 planetas.');
 			} else {
 				gamePaused = false; // resume
+				try { soundManager.loop('sonidoNave', true); soundManager.play('sonidoNave'); } catch(e) {}
 			}
 			// Reset cooldown AFTER the pause completes
 			collisionCooldown = false;
@@ -961,9 +1014,14 @@ function handleCollision(planet) {
 		
 		// EXPLODE the planet
 		try { explodePlanet(planet); } catch(e) { console.warn('explodePlanet failed', e); }
+		// play explosion sound (hidden volume managed in soundManager)
+		try { soundManager.play('exposion', { reset: true }); } catch(e) {}
 		
 		// PAUSE GAME for 1 second
 		gamePaused = true;
+		// stop ambient & movement sounds during the pause
+		try { soundManager.stop('sonidoNave'); } catch(e) {}
+		try { soundManager.stop('movimiento'); movementPlaying = false; } catch(e) {}
 		
 		// small bounce-back
 		try {
@@ -988,9 +1046,11 @@ function handleCollision(planet) {
 			} catch(e) {}
 			// check defeat
 			if (lives <= 0) {
+				try { soundManager.play('derrota'); } catch(e) {}
 				showEndMessage('GAME OVER – Recargá la página para volver a intentar');
 			} else {
 				gamePaused = false; // resume
+				try { soundManager.loop('sonidoNave', true); soundManager.play('sonidoNave'); } catch(e) {}
 			}
 			// Reset cooldown AFTER the pause completes
 			collisionCooldown = false;
