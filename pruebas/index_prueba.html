@@ -36,6 +36,10 @@
   </script>
 
   <div id="ui">
+    <div class="row" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <div style="font-size:13px; color:#9fc1ff; opacity:0.85; margin-top:0;">Opciones del visor</div>
+      <button id="hidePanelBtn" title="Ocultar panel" style="padding:4px 8px; font-size:12px; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:#0f2143; color:#e9f3ff; cursor:pointer">Ocultar</button>
+    </div>
     <div class="row">
       <label for="modelSelect">Elegir modelo de nave</label>
       <select id="modelSelect">
@@ -51,6 +55,11 @@
     <div class="row">
       <label style="font-size:13px"><input type="checkbox" id="colliderToggle" checked> Mostrar esfera de colisiones</label>
     </div>
+    <!-- MODO CÁMARA LIBRE OCULTO PROVISIONALMENTE -->
+    <div class="row" style="display:none">
+      <label style="font-size:13px"><input type="checkbox" id="freeCamToggle" disabled> Cámara libre (WASD + ratón)</label>
+      <div style="font-size:11px; color:#9fb3cc; margin-top:4px">(Oculto temporalmente)</div>
+    </div>
     <div class="row">
       <label for="planetSelect" style="font-size:13px">Elegir planeta para previsualizar</label>
       <select id="planetSelect" style="display:block; margin-top:6px; padding:6px 8px; width:100%; border-radius:8px; border:1px solid rgba(255,255,255,0.12); background:#0a1528; color:#fff;">
@@ -65,10 +74,17 @@
         <option value="neptune">Neptuno</option>
       </select>
     </div>
+    <div class="row">
+      <button id="planetOnlyBtn" style="padding:6px 10px; font-size:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:#0f2143; color:#e9f3ff; cursor:pointer; width:100%">Observar solo planeta</button>
+      <div style="font-size:11px; color:#9fb3cc; margin-top:6px"></div>
+    </div>
   </div>
 
   <!-- botón flotante esquina superior derecha -->
   <button id="openTestEncy" style="position:fixed; top:14px; right:14px; z-index:100; padding:8px 12px; background:#2a9d8f; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:14px; box-shadow:0 6px 16px rgba(0,0,0,0.25)">Enciclopedia</button>
+
+  <!-- botón para mostrar el panel cuando está oculto -->
+  <button id="showPanelBtn" style="display:none; position:fixed; top:14px; left:14px; z-index:100; padding:6px 10px; background:#0f2143; color:#e9f3ff; border:1px solid rgba(255,255,255,0.15); border-radius:8px; cursor:pointer; font-size:12px; box-shadow:0 6px 16px rgba(0,0,0,0.25)">Mostrar opciones</button>
 
   <div id="canvasContainer"></div>
 
@@ -87,6 +103,19 @@
     // Cerrar con ESC
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') hideEncyclopedia();
+    });
+
+    // Toggle para ocultar/mostrar el panel de opciones
+    const uiPanel = document.getElementById('ui');
+    const hideBtn = document.getElementById('hidePanelBtn');
+    const showBtn = document.getElementById('showPanelBtn');
+    hideBtn?.addEventListener('click', () => {
+      uiPanel.style.display = 'none';
+      showBtn.style.display = 'block';
+    });
+    showBtn?.addEventListener('click', () => {
+      uiPanel.style.display = 'block';
+      showBtn.style.display = 'none';
     });
   </script>
 </body>
